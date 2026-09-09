@@ -119,13 +119,28 @@ if ($authId && $domain && $memberId) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Installing DoubleTick WhatsApp for Bitrix24</title>
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        :root {
+            --primary: #3F906D; --primary-hover: #2e6e52; --primary-glow: rgba(63, 144, 109, 0.25);
+            --bg-dark: #0f172a; --card-bg: #1e293b; --card-border: #334155;
+            --text-main: #f8fafc; --text-muted: #94a3b8; --success: #10b981; --danger: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-dark); color: var(--text-main); line-height: 1.6; padding: 24px; }
+        .container { max-width: 600px; margin: 60px auto 0; }
+        .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; text-decoration: none; }
+        .btn-primary { background: var(--primary); color: #fff; }
+    </style>
     <script src="//api.bitrix24.com/api/v1/"></script>
 </head>
 <body>
 <div class="container" style="max-width: 600px; margin-top: 60px;">
     <div class="card" style="text-align: center;">
         <div style="margin-bottom: 20px;">
-            <img src="assets/icon.svg" width="64" height="64" alt="DoubleTick" style="border-radius: 16px;">
+            <img src="assets/icon.svg" onerror="this.src='icon.svg'" width="64" height="64" alt="DoubleTick" style="border-radius: 16px;">
         </div>
         <h2>DoubleTick WhatsApp for Bitrix24</h2>
         

@@ -73,6 +73,29 @@ if ($b24) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DoubleTick WhatsApp Connector Settings</title>
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        :root {
+            --primary: #3F906D; --primary-hover: #2e6e52; --primary-glow: rgba(63, 144, 109, 0.25);
+            --bg-dark: #0f172a; --card-bg: #1e293b; --card-border: #334155;
+            --text-main: #f8fafc; --text-muted: #94a3b8; --success: #10b981; --warning: #f59e0b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-dark); color: var(--text-main); line-height: 1.6; padding: 16px; }
+        .container { max-width: 650px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid var(--card-border); margin-bottom: 16px; }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand h1 { font-size: 18px; font-weight: 700; color: #fff; }
+        .brand p { font-size: 12px; color: var(--text-muted); }
+        .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+        .card h2 { font-size: 15px; margin-bottom: 14px; color: var(--primary); }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
+        .form-control { width: 100%; padding: 10px 14px; background: #0f172a; border: 1px solid var(--card-border); border-radius: 8px; color: #fff; font-size: 14px; outline: none; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
+        .btn-primary { background: var(--primary); color: #fff; }
+    </style>
     <script src="//api.bitrix24.com/api/v1/"></script>
 </head>
 <body style="padding: 16px;">
@@ -80,7 +103,7 @@ if ($b24) {
 <div class="container" style="max-width: 650px;">
     <div class="header" style="margin-bottom: 16px; padding-bottom: 16px;">
         <div class="brand">
-            <img src="assets/icon.svg" width="36" height="36" alt="DoubleTick">
+            <img src="assets/icon.svg" onerror="this.src='icon.svg'" width="36" height="36" alt="DoubleTick">
             <div>
                 <h1>DoubleTick WhatsApp Connector</h1>
                 <p>Configure Open Channels two-way WhatsApp routing</p>

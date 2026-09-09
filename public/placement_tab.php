@@ -81,9 +81,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_ai_summary') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DoubleTick WhatsApp CRM Integration</title>
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="style.css">
     <script src="//api.bitrix24.com/api/v1/"></script>
     <style>
-        body { padding: 12px; background: #0f172a; overflow: hidden; height: 100vh; }
+        :root {
+            --primary: #3F906D; --primary-hover: #2e6e52; --primary-glow: rgba(63, 144, 109, 0.25);
+            --bg-dark: #0f172a; --card-bg: #1e293b; --card-border: #334155;
+            --text-main: #f8fafc; --text-muted: #94a3b8; --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { padding: 12px; background: #0f172a; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; height: 100vh; }
         .tab-toolbar {
             display: flex;
             justify-content: space-between;
@@ -96,6 +104,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_ai_summary') {
         }
         .customer-info { display: flex; align-items: center; gap: 10px; font-size: 14px; }
         .toolbar-actions { display: flex; gap: 8px; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .code-badge { background: #0f172a; padding: 4px 8px; border-radius: 6px; font-family: monospace; color: #38bdf8; font-size: 12px; }
+        .iframe-container { width: 100%; height: calc(100vh - 80px); border: none; border-radius: 12px; background: #fff; }
         #ai-modal {
             display: none;
             position: fixed;
@@ -117,7 +129,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_ai_summary') {
 
 <div class="tab-toolbar">
     <div class="customer-info">
-        <img src="assets/icon.svg" width="28" height="28" alt="DoubleTick">
+        <img src="assets/icon.svg" onerror="this.src='icon.svg'" width="28" height="28" alt="DoubleTick">
         <div>
             <strong id="contact-name">Loading contact...</strong>
             <span id="contact-phone" class="code-badge" style="margin-left: 8px;">---</span>
