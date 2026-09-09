@@ -285,6 +285,59 @@ class DoubleTickClient
     }
 
     /**
+     * Retrieve chat messages for a specific customer
+     */
+    public function getChatMessages(string $phone, ?string $wabaNumber = null, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $waba = $this->resolveFromWaba($wabaNumber);
+        $params = [
+            'wabaNumber' => $this->normalizePhone($waba),
+            'customerNumber' => $this->normalizePhone($phone),
+        ];
+        if ($startDate) {
+            $params['startDate'] = $startDate;
+        }
+        if ($endDate) {
+            $params['endDate'] = $endDate;
+        }
+
+        try {
+            return $this->get('/chat-messages', $params);
+        } catch (\Throwable $e) {
+            Logger::warning("Could not fetch /chat-messages from DoubleTick: " . $e->getMessage());
+            return ['success' => false, 'messages' => [], 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get 24-hour customer care window status for customer
+     */
+    public function getChatWindowStatus(string $phone, ?string $wabaNumber = null): array
+    {
+        $waba = $this->resolveFromWaba($wabaNumber);
+        $cleanPhone = $this->normalizePhone($phone);
+        $params = [
+            'wabaNumber' => '+' . $this->normalizePhone($waba),
+            'customerPhoneNumber' => '+' . $cleanPhone,
+        ];
+
+        try {
+            return $this->get('/chat/status', $params);
+        } catch (\Throwable $e) {
+            // Try without leading + if failed
+            try {
+                return $this->get('/chat/status', [
+                    'wabaNumber' => $this->normalizePhone($waba),
+                    'customerPhoneNumber' => $cleanPhone,
+                ]);
+            } catch (\Throwable $e2) {
+                Logger::warning("Could not fetch /chat/status from DoubleTick: " . $e2->getMessage());
+                return ['isOpen' => false, 'error' => $e2->getMessage()];
+            }
+        }
+    }
+
+    /**
      * Fetch list of connected WhatsApp channels/WABAs
      */
     public function listChannels(): array

@@ -129,12 +129,19 @@ class ImConnectorService
             $stmt = $db->prepare("
                 INSERT INTO message_mappings (
                     portal_id, b24_chat_id, b24_message_id, dt_message_id, whatsapp_message_id,
-                    customer_phone, direction, message_type, status, created_at
+                    customer_phone, direction, message_type, status, raw_data, created_at
                 ) VALUES (
                     :portal_id, :b24_chat_id, :b24_message_id, :dt_message_id, :whatsapp_message_id,
-                    :customer_phone, 'INBOUND', :type, 'delivered', datetime('now')
+                    :customer_phone, 'INBOUND', :type, 'delivered', :raw_data, datetime('now')
                 )
             ");
+
+            $rawDataJson = json_encode([
+                'text' => $text,
+                'files' => $files,
+                'sender_name' => $customerName,
+                'time' => date('Y-m-d H:i:s'),
+            ]);
 
             foreach ($res['result']['DATA'] as $sentItem) {
                 $b24ChatId = (int)($sentItem['chat']['id'] ?? 0);
@@ -147,6 +154,7 @@ class ImConnectorService
                     'whatsapp_message_id' => $whatsappMessageId,
                     'customer_phone' => $cleanPhone,
                     'type' => empty($files) ? 'text' : 'media',
+                    'raw_data' => $rawDataJson,
                 ]);
             }
         }
@@ -212,10 +220,10 @@ class ImConnectorService
                 $stmt = $db->prepare("
                     INSERT INTO message_mappings (
                         portal_id, b24_chat_id, b24_message_id, dt_message_id, whatsapp_message_id,
-                        customer_phone, direction, message_type, status, created_at
+                        customer_phone, direction, message_type, status, raw_data, created_at
                     ) VALUES (
                         :portal_id, :b24_chat_id, :b24_message_id, :dt_message_id, NULL,
-                        :customer_phone, 'OUTBOUND', 'text', 'sent', datetime('now')
+                        :customer_phone, 'OUTBOUND', 'text', 'sent', :raw_data, datetime('now')
                     )
                 ");
                 $stmt->execute([
@@ -224,6 +232,10 @@ class ImConnectorService
                     'b24_message_id' => $b24MsgId,
                     'dt_message_id' => $dtMessageId,
                     'customer_phone' => $customerPhone,
+                    'raw_data' => json_encode([
+                        'text' => $cleanText,
+                        'time' => date('Y-m-d H:i:s'),
+                    ]),
                 ]);
 
                 Logger::info("Outbound message successfully sent to DoubleTick", [
