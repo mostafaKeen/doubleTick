@@ -24,6 +24,55 @@ use DoubleTickB24\DoubleTick\DoubleTickClient;
 
 $config = require dirname(__DIR__) . '/config/config.php';
 
+/**
+ * Safely extract text, media URL, and media type from any DoubleTick message structure
+ */
+function extractDtMessageContent($msg): array {
+    $text = '';
+    $mediaUrl = null;
+    $mediaType = 'text';
+
+    if (is_string($msg)) {
+        $text = $msg;
+    } elseif (is_array($msg)) {
+        if (isset($msg['text'])) {
+            $text = is_array($msg['text']) ? ($msg['text']['body'] ?? $msg['text']['text'] ?? '') : (string)$msg['text'];
+        } elseif (isset($msg['caption'])) {
+            $text = is_array($msg['caption']) ? ($msg['caption']['body'] ?? '') : (string)$msg['caption'];
+        } elseif (isset($msg['body'])) {
+            $text = (string)$msg['body'];
+        }
+
+        if (!empty($msg['url'])) {
+            $mediaUrl = (string)$msg['url'];
+        } elseif (!empty($msg['mediaUrl'])) {
+            $mediaUrl = (string)$msg['mediaUrl'];
+        }
+
+        if (!empty($msg['messageType'])) {
+            $mediaType = strtolower((string)$msg['messageType']);
+        } elseif (!empty($msg['type'])) {
+            $mediaType = strtolower((string)$msg['type']);
+        }
+
+        // If text is still empty and no media, check if any string field exists
+        if ($text === '' && empty($mediaUrl)) {
+            foreach ($msg as $k => $v) {
+                if (is_string($v) && !in_array($k, ['id', 'messageId', 'type', 'messageType', 'status', 'direction', 'messageOriginType'])) {
+                    $text = $v;
+                    break;
+                }
+            }
+        }
+    }
+
+    return [
+        'text' => (string)$text,
+        'media_url' => $mediaUrl,
+        'media_type' => $mediaType,
+    ];
+}
+
 // -------------------------------------------------------------
 // AJAX Action: Fetch Live Chat History & 24h Window Status
 // -------------------------------------------------------------
@@ -56,23 +105,64 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
         $dtRes = $dt->getChatMessages($cleanPhone, $waba);
         if (!empty($dtRes['messages']) && is_array($dtRes['messages'])) {
             foreach ($dtRes['messages'] as $m) {
-                $msgId = (string)($m['messageId'] ?? uniqid());
-                $sender = preg_replace('/[^0-9]/', '', (string)($m['sender'] ?? ''));
-                $cleanWaba = preg_replace('/[^0-9]/', '', (string)$waba);
-                $isOutbound = ($sender === $cleanWaba || (str_ends_with($cleanWaba, $sender) && strlen($sender) > 6));
+                $msgId = (string)($m['id'] ?? $m['messageId'] ?? uniqid());
 
-                $ts = !empty($m['timestamp']) ? strtotime($m['timestamp']) : time();
+                // Direction: messageOriginType is CUSTOMER (inbound) or USER / ORGANIZATION / SYSTEM (outbound)
+                $origin = strtoupper((string)($m['messageOriginType'] ?? ''));
+                if ($origin === 'CUSTOMER') {
+                    $isOutbound = false;
+                } elseif ($origin !== '') {
+                    $isOutbound = true;
+                } else {
+                    $sender = preg_replace('/[^0-9]/', '', (string)($m['sender'] ?? $m['from'] ?? ''));
+                    $cleanWaba = preg_replace('/[^0-9]/', '', (string)$waba);
+                    $isOutbound = ($sender && ($sender === $cleanWaba || str_ends_with($cleanWaba, $sender)));
+                }
+
+                // Extract content
+                $content = extractDtMessageContent($m['message'] ?? $m);
+                $text = $content['text'];
+                $mediaUrl = $content['media_url'] ?: ($m['mediaUrl'] ?? null);
+
+                // Timestamp: DoubleTick messageTime is epoch milliseconds (e.g. 1737612046032)
+                $rawTs = $m['messageTime'] ?? $m['timestamp'] ?? null;
+                if (!empty($rawTs)) {
+                    if (is_numeric($rawTs)) {
+                        $ts = ((float)$rawTs > 2000000000) ? (int)round((float)$rawTs / 1000) : (int)$rawTs;
+                    } else {
+                        $ts = strtotime((string)$rawTs) ?: time();
+                    }
+                } else {
+                    $ts = time();
+                }
+
+                // Status
+                $status = 'sent';
+                if (!empty($m['readCount']) && (int)$m['readCount'] > 0) {
+                    $status = 'read';
+                } elseif (!empty($m['deliveryCount']) && (int)$m['deliveryCount'] > 0) {
+                    $status = 'delivered';
+                } elseif (!empty($m['sentCount']) && (int)$m['sentCount'] > 0) {
+                    $status = 'sent';
+                } elseif (!empty($m['erroredCount']) && (int)$m['erroredCount'] > 0) {
+                    $status = 'failed';
+                } elseif (!empty($m['status'])) {
+                    $status = strtolower((string)$m['status']);
+                }
+
+                $isTemplate = !empty($m['templateId']);
+
                 $seenIds[$msgId] = true;
                 $messages[] = [
                     'id' => $msgId,
                     'direction' => $isOutbound ? 'OUTBOUND' : 'INBOUND',
-                    'text' => (string)($m['message'] ?? ''),
-                    'media_url' => $m['mediaUrl'] ?? null,
+                    'text' => $text,
+                    'media_url' => $mediaUrl,
                     'timestamp' => $ts,
                     'time_str' => date('h:i A', $ts),
                     'date_str' => date('M j, Y', $ts),
-                    'status' => strtolower((string)($m['status'] ?? ($isOutbound ? 'sent' : 'delivered'))),
-                    'type' => !empty($m['mediaUrl']) ? 'media' : 'text',
+                    'status' => $status,
+                    'type' => $isTemplate ? 'template' : ($mediaUrl ? 'media' : 'text'),
                 ];
             }
         }
@@ -105,8 +195,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
             if (!empty($row['raw_data'])) {
                 $raw = json_decode($row['raw_data'], true);
                 if (is_array($raw)) {
-                    $text = $raw['text'] ?? '';
-                    if (!empty($raw['files'][0]['url'])) {
+                    $content = extractDtMessageContent($raw);
+                    $text = $content['text'];
+                    $mediaUrl = $content['media_url'];
+                    if (!$text && !empty($raw['template_name'])) {
+                        $text = "📋 Template: " . $raw['template_name'];
+                    }
+                    if (!$mediaUrl && !empty($raw['files'][0]['url'])) {
                         $mediaUrl = $raw['files'][0]['url'];
                     }
                 } else {
@@ -1143,7 +1238,12 @@ header('Content-Security-Policy: frame-ancestors *');
                 bubbleContent += `<div style="margin-bottom: 6px;"><a href="${escapeHtml(m.media_url)}" target="_blank" style="color: #60a5fa; text-decoration: underline;">📎 View Attachment</a></div>`;
             }
 
-            bubbleContent += `<div style="white-space: pre-wrap;">${escapeHtml(m.text)}</div>`;
+            const textContent = formatMessageText(m.text);
+            if (textContent) {
+                bubbleContent += `<div style="white-space: pre-wrap;">${escapeHtml(textContent)}</div>`;
+            } else if (!m.media_url && !isTpl) {
+                bubbleContent += `<div style="font-style: italic; opacity: 0.7;">[WhatsApp message]</div>`;
+            }
             bubbleContent += `<div class="bubble-footer"><span>${escapeHtml(m.time_str || '')}</span>${checkIcon}</div>`;
 
             const isTpl = (m.type === 'template');
@@ -1379,6 +1479,20 @@ header('Content-Security-Policy: frame-ancestors *');
 
     function closeAiModal() {
         document.getElementById('ai-modal').style.display = 'none';
+    }
+
+    function formatMessageText(val) {
+        if (val === null || val === undefined) return '';
+        if (typeof val === 'object') {
+            if (val.text && typeof val.text === 'string') return val.text;
+            if (val.text && typeof val.text === 'object') return val.text.body || val.text.text || JSON.stringify(val.text);
+            if (val.body && typeof val.body === 'string') return val.body;
+            if (val.caption && typeof val.caption === 'string') return val.caption;
+            return JSON.stringify(val);
+        }
+        const str = String(val);
+        if (str === 'Array' || str === '[object Object]') return '';
+        return str;
     }
 
     function escapeHtml(str) {
