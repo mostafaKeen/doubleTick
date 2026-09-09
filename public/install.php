@@ -118,9 +118,6 @@ if ($authId && $domain && $memberId) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Installing DoubleTick WhatsApp for Bitrix24</title>
-    <link rel="stylesheet" href="assets/css/style.css">
-    <link rel="stylesheet" href="assets/style.css">
-    <link rel="stylesheet" href="style.css">
     <style>
         :root {
             --primary: #3F906D; --primary-hover: #2e6e52; --primary-glow: rgba(63, 144, 109, 0.25);
@@ -140,7 +137,11 @@ if ($authId && $domain && $memberId) {
 <div class="container" style="max-width: 600px; margin-top: 60px;">
     <div class="card" style="text-align: center;">
         <div style="margin-bottom: 20px;">
-            <img src="assets/icon.svg" onerror="this.src='icon.svg'" width="64" height="64" alt="DoubleTick" style="border-radius: 16px;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="64" height="64" style="border-radius: 16px;">
+                <rect width="48" height="48" rx="12" fill="#3F906D"/>
+                <path d="M24 8C15.16 8 8 15.16 8 24C8 26.83 8.74 29.58 10.14 32L7.9 40.2L16.32 38C18.66 39.28 21.3 40 24 40C32.84 40 40 32.84 40 24C40 15.16 32.84 8 24 8ZM24 37.3C21.6 37.3 19.26 36.66 17.22 35.46L16.74 35.18L11.72 36.5L13.06 31.62L12.74 31.12C11.42 29 10.72 26.54 10.72 24C10.72 16.68 16.68 10.72 24 10.72C31.32 10.72 37.28 16.68 37.28 24C37.28 31.32 31.32 37.3 24 37.3Z" fill="#FFFFFF"/>
+                <path d="M29.5 25.5C29 25.25 26.5 24.02 26.04 23.85C25.58 23.68 25.24 23.6 24.9 24.1C24.56 24.6 23.6 25.75 23.3 26.1C23.02 26.45 22.72 26.49 22.22 26.24C21.72 25.99 20.12 25.46 18.22 23.77C16.74 22.45 15.74 20.82 15.46 20.32C15.18 19.82 15.42 19.55 15.68 19.3C15.9 19.08 16.18 18.72 16.42 18.44C16.68 18.16 16.76 17.96 16.92 17.62C17.08 17.28 17 16.98 16.88 16.74C16.76 16.5 15.74 14 15.32 12.98C14.9 12 14.5 12.14 14.2 12.12H13.24C12.9 12.12 12.36 12.24 11.9 12.74C11.44 13.24 10.16 14.44 10.16 16.88C10.16 19.32 11.94 21.68 12.18 22C12.44 22.34 15.68 27.3 20.62 29.42C21.8 29.92 22.72 30.22 23.42 30.46C24.6 30.82 25.68 30.78 26.54 30.64C27.5 30.5 29.5 29.42 29.92 28.24C30.34 27.06 30.34 26.04 30.22 25.82C30.08 25.62 29.98 25.74 29.5 25.5Z" fill="#FFFFFF"/>
+            </svg>
         </div>
         <h2>DoubleTick WhatsApp for Bitrix24</h2>
         
