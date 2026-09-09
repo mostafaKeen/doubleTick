@@ -1208,6 +1208,7 @@ header('Content-Security-Policy: frame-ancestors *');
 
         messages.forEach(m => {
             const isOut = (m.direction === 'OUTBOUND');
+            const isTpl = (m.type === 'template');
             const dateStr = m.date_str || 'Today';
 
             if (dateStr !== lastDate) {
@@ -1230,7 +1231,7 @@ header('Content-Security-Policy: frame-ancestors *');
             }
 
             let bubbleContent = '';
-            if (m.type === 'template') {
+            if (isTpl) {
                 bubbleContent += `<div class="template-tag">📋 APPROVED TEMPLATE</div>`;
             }
 
@@ -1246,7 +1247,6 @@ header('Content-Security-Policy: frame-ancestors *');
             }
             bubbleContent += `<div class="bubble-footer"><span>${escapeHtml(m.time_str || '')}</span>${checkIcon}</div>`;
 
-            const isTpl = (m.type === 'template');
             html += `<div class="${rowClass}"><div class="bubble ${isTpl ? 'bubble-template' : ''}">${bubbleContent}</div></div>`;
         });
 
