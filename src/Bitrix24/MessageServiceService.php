@@ -28,8 +28,8 @@ class MessageServiceService
             'CODE' => $this->senderCode,
             'TYPE' => 'SMS',
             'HANDLER' => $handlerUrl,
-            'NAME' => 'DoubleTick WhatsApp',
-            'DESCRIPTION' => 'Official DoubleTick WhatsApp Business API provider',
+            'NAME' => 'KEEN DoubleTick',
+            'DESCRIPTION' => 'Official KEEN DoubleTick WhatsApp Business API provider',
         ]);
 
         Logger::info("messageservice.sender.add response", ['result' => $res]);

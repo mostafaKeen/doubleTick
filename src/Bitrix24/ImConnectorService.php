@@ -32,7 +32,7 @@ class ImConnectorService
 
         $params = [
             'ID' => $this->connectorId,
-            'NAME' => 'DoubleTick WhatsApp',
+            'NAME' => 'KEEN DoubleTick',
             'ICON' => [
                 'DATA_IMAGE' => $dataImage,
                 'COLOR' => '#3F906D',

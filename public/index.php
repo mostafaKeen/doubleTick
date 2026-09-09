@@ -213,7 +213,7 @@ $recentWebhooks = $db->query("SELECT * FROM webhook_logs ORDER BY id DESC LIMIT 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DoubleTick WhatsApp Dashboard for Bitrix24</title>
+    <title>KEEN DoubleTick Dashboard for Bitrix24</title>
     <style>
         :root {
             --primary: #3F906D;
@@ -273,8 +273,8 @@ $recentWebhooks = $db->query("SELECT * FROM webhook_logs ORDER BY id DESC LIMIT 
                 </svg>
             </div>
             <div>
-                <h1>DoubleTick WhatsApp</h1>
-                <p>Enterprise Bitrix24 CRM Integration</p>
+                <h1>KEEN DoubleTick</h1>
+                <p>Enterprise Bitrix24 WhatsApp Integration</p>
             </div>
         </div>
         <div>

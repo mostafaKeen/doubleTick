@@ -88,10 +88,10 @@ if ($authId && $domain && $memberId) {
             );
             $logs[] = "Registered Open Channels Connector: " . ($imRes['connector']['result'] ? 'Success' : 'Check settings');
 
-            // 2. Bind CRM Detail Placements
+            // 2. Unbind existing then bind CRM Detail Placements as 'KEEN DoubleTick'
             $placement = new PlacementService($b24);
-            $plRes = $placement->bindCrmTabs($appUrl . '/placement_tab.php');
-            $logs[] = "Bound CRM Detail Tabs (Lead, Deal, Contact, Company)";
+            $plRes = $placement->bindCrmTabs($appUrl . '/placement_tab.php', true);
+            $logs[] = "Unbound existing & bound CRM Detail Tabs as 'KEEN DoubleTick' (Lead, Deal, Contact, Company)";
 
             // 3. Register Business Process Automation Robots
             $bizProc = new BizProcService($b24);
@@ -99,13 +99,13 @@ if ($authId && $domain && $memberId) {
             if (isset($bpRes['dt_send_template']['error']) && $bpRes['dt_send_template']['error'] === 'insufficient_scope') {
                 $logs[] = "CRM Automation Robots: Skipped (grant 'Business Processes (bizproc)' in Bitrix24 Local App to activate)";
             } else {
-                $logs[] = "Registered CRM Automation Robots (Send Template, Send Text)";
+                $logs[] = "Registered CRM Automation Robots (KEEN DoubleTick: Send Template, Send Text)";
             }
 
             // 4. Register MessageService provider
             $msgService = new MessageServiceService($b24);
             $msRes = $msgService->register($appUrl . '/webhook_b24.php');
-            $logs[] = "Registered CRM Timeline Messaging Provider (doubletick_wa)";
+            $logs[] = "Registered CRM Timeline Messaging Provider (KEEN DoubleTick)";
         }
 
         $status = 'installed';
@@ -121,7 +121,7 @@ if ($authId && $domain && $memberId) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Installing DoubleTick WhatsApp for Bitrix24</title>
+    <title>Installing KEEN DoubleTick for Bitrix24</title>
     <style>
         :root {
             --primary: #3F906D; --primary-hover: #2e6e52; --primary-glow: rgba(63, 144, 109, 0.25);
@@ -147,7 +147,8 @@ if ($authId && $domain && $memberId) {
                 <path d="M29.5 25.5C29 25.25 26.5 24.02 26.04 23.85C25.58 23.68 25.24 23.6 24.9 24.1C24.56 24.6 23.6 25.75 23.3 26.1C23.02 26.45 22.72 26.49 22.22 26.24C21.72 25.99 20.12 25.46 18.22 23.77C16.74 22.45 15.74 20.82 15.46 20.32C15.18 19.82 15.42 19.55 15.68 19.3C15.9 19.08 16.18 18.72 16.42 18.44C16.68 18.16 16.76 17.96 16.92 17.62C17.08 17.28 17 16.98 16.88 16.74C16.76 16.5 15.74 14 15.32 12.98C14.9 12 14.5 12.14 14.2 12.12H13.24C12.9 12.12 12.36 12.24 11.9 12.74C11.44 13.24 10.16 14.44 10.16 16.88C10.16 19.32 11.94 21.68 12.18 22C12.44 22.34 15.68 27.3 20.62 29.42C21.8 29.92 22.72 30.22 23.42 30.46C24.6 30.82 25.68 30.78 26.54 30.64C27.5 30.5 29.5 29.42 29.92 28.24C30.34 27.06 30.34 26.04 30.22 25.82C30.08 25.62 29.98 25.74 29.5 25.5Z" fill="#FFFFFF"/>
             </svg>
         </div>
-        <h2>DoubleTick WhatsApp for Bitrix24</h2>
+        <h2>KEEN DoubleTick</h2>
+        <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 10px;">WhatsApp Integration for Bitrix24</p>
         
         <?php if ($status === 'installed'): ?>
             <p style="color: var(--success); margin: 15px 0; font-weight: 600;">

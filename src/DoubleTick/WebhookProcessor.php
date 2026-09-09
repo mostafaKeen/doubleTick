@@ -197,7 +197,7 @@ class WebhookProcessor
         // Create notification in Bitrix24
         $this->b24->call('im.notify.personal.add', [
             'USER_ID' => 1, // Admin / Manager
-            'MESSAGE' => "🚨 DoubleTick WhatsApp SLA Breach! Conversation with {$customerPhone} (Agent: {$agentName}) has escalated.",
+            'MESSAGE' => "🚨 KEEN DoubleTick SLA Breach! Conversation with {$customerPhone} (Agent: {$agentName}) has escalated.",
         ]);
 
         Logger::warning("DoubleTick SLA Escalation Alert Triggered", ['payload' => $payload]);

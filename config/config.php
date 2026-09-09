@@ -28,7 +28,7 @@ if (file_exists($envFile)) {
 
 return [
     'app' => [
-        'name' => 'DoubleTick WhatsApp for Bitrix24',
+        'name' => 'KEEN DoubleTick',
         'url' => getenv('APP_URL') ?: 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'),
         'env' => getenv('APP_ENV') ?: 'production',
         'debug' => (bool)(getenv('APP_DEBUG') ?: false),
@@ -43,9 +43,9 @@ return [
         'client_id' => getenv('B24_CLIENT_ID') ?: '',
         'client_secret' => getenv('B24_CLIENT_SECRET') ?: '',
         'connector_id' => 'doubletick_whatsapp',
-        'connector_name' => 'DoubleTick WhatsApp',
+        'connector_name' => 'KEEN DoubleTick',
         'messageservice_id' => 'doubletick_wa',
-        'messageservice_name' => 'DoubleTick WhatsApp',
+        'messageservice_name' => 'KEEN DoubleTick',
     ],
     'database' => [
         'driver' => getenv('DB_DRIVER') ?: 'sqlite',

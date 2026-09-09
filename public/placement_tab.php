@@ -140,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DoubleTick WhatsApp CRM Integration</title>
+    <title>KEEN DoubleTick</title>
     <script src="//api.bitrix24.com/api/v1/"></script>
     <style>
         :root {
@@ -258,7 +258,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 <div id="chat-container" style="height: calc(100vh - 80px); width: 100%;">
     <div id="loading" style="text-align: center; padding: 60px; color: var(--text-muted);">
-        <p>Connecting to DoubleTick WhatsApp session...</p>
+        <p>Connecting to KEEN DoubleTick WhatsApp session...</p>
     </div>
     <iframe id="chat-frame" class="iframe-container" style="display: none;"></iframe>
 </div>

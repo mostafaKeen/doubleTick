@@ -31,12 +31,12 @@ class BizProcService
             'AUTH_USER_ID' => 1,
             'USE_SUBSCRIPTION' => 'Y',
             'NAME' => [
-                'en' => 'DoubleTick: Send WhatsApp Template',
-                'ru' => 'DoubleTick: Отправить шаблон WhatsApp',
+                'en' => 'KEEN DoubleTick: Send WhatsApp Template',
+                'ru' => 'KEEN DoubleTick: Отправить шаблон WhatsApp',
             ],
             'DESCRIPTION' => [
-                'en' => 'Send pre-approved WhatsApp template via DoubleTick with dynamic CRM placeholders',
-                'ru' => 'Отправка шаблона WhatsApp через DoubleTick',
+                'en' => 'Send pre-approved WhatsApp template via KEEN DoubleTick with dynamic CRM placeholders',
+                'ru' => 'Отправка шаблона WhatsApp через KEEN DoubleTick',
             ],
             'PROPERTIES' => [
                 'phone' => [
@@ -93,8 +93,8 @@ class BizProcService
             'AUTH_USER_ID' => 1,
             'USE_SUBSCRIPTION' => 'Y',
             'NAME' => [
-                'en' => 'DoubleTick: Send Direct WhatsApp Message',
-                'ru' => 'DoubleTick: Отправить сообщение WhatsApp',
+                'en' => 'KEEN DoubleTick: Send Direct WhatsApp Message',
+                'ru' => 'KEEN DoubleTick: Отправить сообщение WhatsApp',
             ],
             'DESCRIPTION' => [
                 'en' => 'Send instant WhatsApp text message (within active 24-hr session)',

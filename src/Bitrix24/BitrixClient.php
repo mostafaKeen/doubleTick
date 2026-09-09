@@ -185,9 +185,9 @@ class BitrixClient
                 }
             }
 
-            // 2. Treat idempotent errors (already binded / already installed) as success
-            if (stripos($errDesc, 'already binded') !== false || stripos($errDesc, 'already installed') !== false) {
-                Logger::info("Bitrix24 {$method} notice: already installed or binded", [
+            // 2. Treat idempotent errors (already binded / already installed / not binded) as success
+            if (stripos($errDesc, 'already binded') !== false || stripos($errDesc, 'already installed') !== false || stripos($errDesc, 'not binded') !== false) {
+                Logger::info("Bitrix24 {$method} notice: idempotent action", [
                     'method' => $method,
                     'notice' => $errDesc
                 ]);
