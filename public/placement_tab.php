@@ -73,6 +73,67 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_ai_summary') {
     }
     exit;
 }
+
+// Fetch approved templates for CRM modal
+if (isset($_GET['action']) && $_GET['action'] === 'get_templates') {
+    header('Content-Type: application/json');
+    $memberId = (string)($_GET['member_id'] ?? '');
+    $b24 = $memberId ? BitrixClient::getByMemberId($memberId) : BitrixClient::getFirstActive();
+    $apiKey = $b24 ? $b24->getDoubleTickApiKey() : $config['doubletick']['api_key'];
+    $waba = $b24 ? $b24->getDoubleTickWaba() : $config['doubletick']['default_waba'];
+
+    try {
+        $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
+        $tplRes = $dt->getTemplates('APPROVED');
+        $templates = isset($tplRes['templates']) && is_array($tplRes['templates']) ? $tplRes['templates'] : (is_array($tplRes) ? $tplRes : []);
+        echo json_encode(['success' => true, 'templates' => $templates]);
+    } catch (\Throwable $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// Send template directly from CRM tab
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send_template') {
+    header('Content-Type: application/json');
+    $phone = trim((string)($_POST['phone'] ?? ''));
+    $templateName = trim((string)($_POST['template_name'] ?? ''));
+    $language = trim((string)($_POST['language'] ?? 'en'));
+    $memberId = (string)($_POST['member_id'] ?? '');
+
+    $params = [];
+    if (!empty($_POST['param1'])) $params[] = trim((string)$_POST['param1']);
+    if (!empty($_POST['param2'])) $params[] = trim((string)$_POST['param2']);
+    if (!empty($_POST['param3'])) $params[] = trim((string)$_POST['param3']);
+
+    $b24 = $memberId ? BitrixClient::getByMemberId($memberId) : BitrixClient::getFirstActive();
+    $apiKey = $b24 ? $b24->getDoubleTickApiKey() : $config['doubletick']['api_key'];
+    $waba = $b24 ? $b24->getDoubleTickWaba() : $config['doubletick']['default_waba'];
+
+    if (!$apiKey || !$phone || !$templateName) {
+        echo json_encode(['success' => false, 'error' => 'API Key, phone and template name are required.']);
+        exit;
+    }
+
+    try {
+        $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
+        $res = $dt->sendTemplateMessage($phone, $templateName, $language, $params, $waba);
+        if (!empty($res['error']) || (!empty($res['status_code']) && $res['status_code'] >= 400)) {
+            $errDetail = is_array($res['error']) ? json_encode($res['error']) : (string)$res['error'];
+            if (!empty($res['raw']['message'])) {
+                $msgDetail = is_array($res['raw']['message']) ? implode(', ', $res['raw']['message']) : (string)$res['raw']['message'];
+                $errDetail .= " ({$msgDetail})";
+            }
+            echo json_encode(['success' => false, 'error' => $errDetail]);
+        } else {
+            $msgId = $res['messageId'] ?? ($res['messages'][0]['messageId'] ?? 'OK');
+            echo json_encode(['success' => true, 'message_id' => $msgId]);
+        }
+    } catch (\Throwable $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -137,6 +198,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_ai_summary') {
         </div>
     </div>
     <div class="toolbar-actions">
+        <button class="btn" style="padding: 6px 12px; font-size: 12px; background: #2563eb; color: #fff;" onclick="openTemplateModal()">
+            📢 Send Template
+        </button>
         <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="loadAiSummary()">
             ✨ AI Summary
         </button>
@@ -144,6 +208,42 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_ai_summary') {
             🔄 Refresh
         </button>
     </div>
+</div>
+
+<div id="template-modal" style="display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); width: 92%; max-width: 500px; background: #1e293b; border: 1px solid #3b82f6; border-radius: 12px; padding: 20px; z-index: 101; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h3 style="color: #60a5fa; font-size: 15px;">📢 Send WhatsApp Template</h3>
+        <button style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 16px;" onclick="closeTemplateModal()">✕</button>
+    </div>
+    <p style="font-size: 11px; color: #94a3b8; margin-bottom: 12px;">
+        Templates initiate WhatsApp conversations even when the 24-hour service window is closed.
+    </p>
+    <div style="margin-bottom: 10px;">
+        <label style="display: block; font-size: 11px; color: #94a3b8; margin-bottom: 4px;">Choose Approved Template</label>
+        <select id="crm-template-select" style="width: 100%; padding: 8px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #fff; font-size: 13px;" onchange="onCrmTemplateChange(this)">
+            <option value="">-- Choose template or type name below --</option>
+        </select>
+    </div>
+    <div style="margin-bottom: 10px;">
+        <label style="display: block; font-size: 11px; color: #94a3b8; margin-bottom: 4px;">Template Name</label>
+        <input type="text" id="crm-template-name" style="width: 100%; padding: 8px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #fff; font-size: 13px;" placeholder="e.g. welcome_message">
+    </div>
+    <div style="margin-bottom: 10px;">
+        <label style="display: block; font-size: 11px; color: #94a3b8; margin-bottom: 4px;">Language</label>
+        <input type="text" id="crm-template-lang" value="en" style="width: 100%; padding: 8px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #fff; font-size: 13px;">
+    </div>
+    <div style="margin-bottom: 10px;">
+        <label style="display: block; font-size: 11px; color: #94a3b8; margin-bottom: 4px;">Placeholder 1 ({{1}} - optional)</label>
+        <input type="text" id="crm-param1" style="width: 100%; padding: 8px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #fff; font-size: 13px;" placeholder="e.g. Customer Name">
+    </div>
+    <div style="margin-bottom: 12px;">
+        <label style="display: block; font-size: 11px; color: #94a3b8; margin-bottom: 4px;">Placeholder 2 ({{2}} - optional)</label>
+        <input type="text" id="crm-param2" style="width: 100%; padding: 8px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #fff; font-size: 13px;" placeholder="e.g. Order # or Date">
+    </div>
+    <div id="crm-template-status" style="display: none; margin-bottom: 10px; font-size: 12px; padding: 8px; border-radius: 6px;"></div>
+    <button class="btn btn-primary" id="btn-send-crm-tpl" style="width: 100%; padding: 9px; background: #2563eb;" onclick="submitCrmTemplate()">
+        🚀 Send Template
+    </button>
 </div>
 
 <div id="ai-modal">
@@ -283,6 +383,110 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_ai_summary') {
 
     function closeAiModal() {
         document.getElementById('ai-modal').style.display = 'none';
+    }
+
+    let crmTemplatesLoaded = false;
+    function openTemplateModal() {
+        if (!currentPhone) {
+            alert('Please wait until contact phone number is loaded.');
+            return;
+        }
+        document.getElementById('template-modal').style.display = 'block';
+        document.getElementById('crm-template-status').style.display = 'none';
+
+        if (!crmTemplatesLoaded) {
+            fetch('placement_tab.php?action=get_templates&member_id=' + encodeURIComponent(currentMemberId))
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.templates && Array.isArray(data.templates)) {
+                        const sel = document.getElementById('crm-template-select');
+                        sel.innerHTML = '<option value="">-- Choose from approved templates --</option>';
+                        data.templates.forEach(tpl => {
+                            const opt = document.createElement('option');
+                            opt.value = tpl.name || '';
+                            opt.setAttribute('data-lang', tpl.language || 'en');
+                            opt.textContent = (tpl.name || '') + ' (' + (tpl.language || 'en') + ') - ' + (tpl.category || 'TEMPLATE');
+                            sel.appendChild(opt);
+                        });
+                        crmTemplatesLoaded = true;
+                    }
+                })
+                .catch(e => console.warn('Could not load templates', e));
+        }
+    }
+
+    function closeTemplateModal() {
+        document.getElementById('template-modal').style.display = 'none';
+    }
+
+    function onCrmTemplateChange(sel) {
+        if (sel.value) {
+            document.getElementById('crm-template-name').value = sel.value;
+            const opt = sel.options[sel.selectedIndex];
+            if (opt && opt.getAttribute('data-lang')) {
+                document.getElementById('crm-template-lang').value = opt.getAttribute('data-lang');
+            }
+        }
+    }
+
+    function submitCrmTemplate() {
+        const tplName = document.getElementById('crm-template-name').value.trim();
+        const tplLang = document.getElementById('crm-template-lang').value.trim() || 'en';
+        const p1 = document.getElementById('crm-param1').value.trim();
+        const p2 = document.getElementById('crm-param2').value.trim();
+        const statusEl = document.getElementById('crm-template-status');
+        const btn = document.getElementById('btn-send-crm-tpl');
+
+        if (!tplName) {
+            alert('Please specify a template name.');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerText = 'Sending...';
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(59, 130, 246, 0.2)';
+        statusEl.style.color = '#93c5fd';
+        statusEl.innerText = 'Sending WhatsApp template...';
+
+        const formData = new FormData();
+        formData.append('action', 'send_template');
+        formData.append('phone', currentPhone);
+        formData.append('template_name', tplName);
+        formData.append('language', tplLang);
+        formData.append('param1', p1);
+        formData.append('param2', p2);
+        formData.append('member_id', currentMemberId);
+
+        fetch('placement_tab.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerText = '🚀 Send Template';
+            if (data.success) {
+                statusEl.style.background = 'rgba(16, 185, 129, 0.2)';
+                statusEl.style.color = '#10b981';
+                statusEl.innerText = '✓ Template sent successfully! Message ID: ' + (data.message_id || 'OK');
+                setTimeout(function() {
+                    closeTemplateModal();
+                    reloadIframe();
+                }, 2000);
+            } else {
+                statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
+                statusEl.style.color = '#ef4444';
+                statusEl.innerText = '✕ Error: ' + (data.error || 'Failed to send template');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerText = '🚀 Send Template';
+            statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
+            statusEl.style.color = '#ef4444';
+            statusEl.innerText = '✕ Network error while sending template.';
+        });
     }
 </script>
 

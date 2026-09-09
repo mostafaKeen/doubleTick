@@ -64,10 +64,26 @@ class MessageServiceService
         }
 
         try {
-            $res = $dtClient->sendTextMessage($phone, $text);
-            if (!empty($res['messageId']) || !empty($res['dtMessageId'])) {
+            $trimmed = trim($text);
+            if (str_starts_with(strtolower($trimmed), 'template:')) {
+                // Operator typed template syntax e.g. "template:welcome_message" or "template:name|param1|param2"
+                $rawTpl = substr($trimmed, strlen('template:'));
+                $parts = explode('|', $rawTpl);
+                $templateName = trim(array_shift($parts));
+                $params = array_values(array_filter(array_map('trim', $parts)));
+                $res = $dtClient->sendTemplateMessage($phone, $templateName, 'en', $params);
+            } else {
+                $res = $dtClient->sendTextMessage($phone, $text);
+            }
+
+            if (!empty($res['messageId']) || !empty($res['dtMessageId']) || (!empty($res['status']) && $res['status'] === 'SENT')) {
                 $this->updateStatus($b24MessageId, 'delivered');
             } else {
+                $errMsg = $res['error'] ?? 'Send failed';
+                Logger::warning("Timeline message delivery failed: " . (is_array($errMsg) ? json_encode($errMsg) : $errMsg), [
+                    'recipient' => $phone,
+                    'b24MessageId' => $b24MessageId,
+                ]);
                 $this->updateStatus($b24MessageId, 'failed');
             }
         } catch (Exception $e) {

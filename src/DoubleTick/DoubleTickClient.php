@@ -50,6 +50,15 @@ class DoubleTickClient
         array $templateData = [],
         ?string $from = null
     ): array {
+        // If templateData is a simple sequential array of placeholders e.g. ['John', 'Special Offer'], wrap it
+        if (!empty($templateData) && array_is_list($templateData)) {
+            $templateData = [
+                'body' => [
+                    'placeholders' => $templateData,
+                ],
+            ];
+        }
+
         $content = [
             'templateName' => $templateName,
             'language' => $language,
@@ -313,6 +322,30 @@ class DoubleTickClient
     public function getWebhooks(): array
     {
         return $this->get('/v2/webhooks');
+    }
+
+    /**
+     * Get approved WhatsApp templates from DoubleTick
+     */
+    public function getTemplates(?string $status = 'APPROVED', ?string $language = null, ?string $category = null): array
+    {
+        $params = [];
+        if ($status !== null) {
+            $params['status'] = $status;
+        }
+        if ($language !== null) {
+            $params['language'] = $language;
+        }
+        if ($category !== null) {
+            $params['category'] = $category;
+        }
+
+        $waba = $this->resolveFromWaba($this->defaultWaba);
+        if ($waba) {
+            $params['wabaPhoneNumbers'] = $this->normalizePhone($waba);
+        }
+
+        return $this->get('/v2/templates', $params);
     }
 
     /**

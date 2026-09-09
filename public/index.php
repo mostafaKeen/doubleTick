@@ -118,6 +118,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "Failed to send message: " . $e->getMessage();
             }
         }
+    } elseif ($action === 'send_template_message') {
+        $to = trim($_POST['template_phone'] ?? '');
+        $templateName = trim($_POST['template_name'] ?? '');
+        $language = trim($_POST['template_language'] ?? 'en');
+        $apiKey = $b24 ? ($b24->getDoubleTickApiKey() ?: $config['doubletick']['api_key']) : $config['doubletick']['api_key'];
+        $waba = $b24 ? ($b24->getDoubleTickWaba() ?: $config['doubletick']['default_waba']) : $config['doubletick']['default_waba'];
+
+        $params = [];
+        for ($i = 1; $i <= 5; $i++) {
+            $val = trim($_POST["template_param_{$i}"] ?? '');
+            if ($val !== '') {
+                $params[] = $val;
+            }
+        }
+
+        if (!$apiKey) {
+            $error = 'DoubleTick API key is required.';
+        } elseif (!$to) {
+            $error = 'Recipient phone number is required.';
+        } elseif (!$templateName) {
+            $error = 'Template name is required.';
+        } else {
+            try {
+                $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
+                $res = $dt->sendTemplateMessage($to, $templateName, $language, $params, $waba);
+
+                if (!empty($res['error']) || (!empty($res['status_code']) && $res['status_code'] >= 400)) {
+                    $errDetail = is_array($res['error']) ? json_encode($res['error']) : (string)$res['error'];
+                    if (!empty($res['raw']['message'])) {
+                        $msgDetail = is_array($res['raw']['message']) ? implode(', ', $res['raw']['message']) : (string)$res['raw']['message'];
+                        $errDetail .= " ({$msgDetail})";
+                    }
+                    $error = "Template Error: {$errDetail}";
+                } else {
+                    $msgId = $res['messageId'] ?? ($res['messages'][0]['messageId'] ?? 'OK');
+                    $status = $res['status'] ?? ($res['messages'][0]['status'] ?? 'SENT');
+                    $notice = "WhatsApp Template '{$templateName}' sent successfully to {$to}! Status: {$status} (Message ID: {$msgId})";
+                }
+            } catch (\Throwable $e) {
+                $error = "Failed to send template: " . $e->getMessage();
+            }
+        }
     } elseif ($action === 'simulate_ad_lead') {
         if ($b24) {
             $crmService = new CrmLeadService($b24);
@@ -133,6 +175,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $error = 'No active Bitrix24 portal found.';
         }
+    }
+}
+
+// Fetch approved templates for selection if API key available
+$approvedTemplates = [];
+$activeApiKey = $b24 ? ($b24->getDoubleTickApiKey() ?: $config['doubletick']['api_key']) : $config['doubletick']['api_key'];
+if ($activeApiKey) {
+    try {
+        $activeWaba = $b24 ? ($b24->getDoubleTickWaba() ?: $config['doubletick']['default_waba']) : $config['doubletick']['default_waba'];
+        $dtTpl = new DoubleTickClient($activeApiKey, $activeWaba, $config['doubletick']['api_url']);
+        $tplRes = $dtTpl->getTemplates('APPROVED');
+        if (!empty($tplRes) && is_array($tplRes)) {
+            // Can be array of items or { templates: [...] }
+            $approvedTemplates = isset($tplRes['templates']) && is_array($tplRes['templates']) ? $tplRes['templates'] : $tplRes;
+        }
+    } catch (\Throwable $e) {
+        // Silently continue
     }
 }
 
@@ -296,18 +355,21 @@ $recentWebhooks = $db->query("SELECT * FROM webhook_logs ORDER BY id DESC LIMIT 
         </div>
 
         <div class="card">
-            <h2>🧪 Diagnostic Quick Tests</h2>
+            <h2>🧪 Direct Text Message (Active 24h Window)</h2>
             <form method="POST" style="margin-bottom: 16px;">
                 <input type="hidden" name="action" value="send_test_message">
                 <div class="form-group">
                     <label>Test WhatsApp Recipient</label>
-                    <input type="text" name="test_phone" class="form-control" placeholder="Phone with country code (e.g. 919876543210)">
+                    <input type="text" name="test_phone" class="form-control" placeholder="Phone with country code (e.g. 201129274930)">
                 </div>
                 <div class="form-group">
-                    <label>Message</label>
+                    <label>Message Text</label>
                     <input type="text" name="test_text" class="form-control" value="Hello! This is a test message from Bitrix24 DoubleTick App.">
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Send Test WhatsApp</button>
+                <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">
+                    Note: WhatsApp Cloud API only allows direct text messages if the contact messaged you in the last 24 hours.
+                </p>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Send Direct Message</button>
             </form>
 
             <form method="POST">
@@ -316,6 +378,66 @@ $recentWebhooks = $db->query("SELECT * FROM webhook_logs ORDER BY id DESC LIMIT 
                     🎯 Simulate Meta CTWA Ad Lead
                 </button>
             </form>
+        </div>
+
+        <div class="card" style="border: 1px solid var(--primary);">
+            <h2>📢 Send WhatsApp Template (Closed Window)</h2>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+                Use approved WhatsApp templates to initiate conversations or message contacts outside the 24-hour service window.
+            </p>
+            <form method="POST">
+                <input type="hidden" name="action" value="send_template_message">
+                <div class="form-group">
+                    <label>Recipient Phone Number</label>
+                    <input type="text" name="template_phone" class="form-control" required placeholder="e.g. 201129274930" value="201129274930">
+                </div>
+
+                <?php if (!empty($approvedTemplates)): ?>
+                    <div class="form-group">
+                        <label>Select Approved Template (<?= count($approvedTemplates) ?> available)</label>
+                        <select id="template_select" class="form-control" onchange="onTemplateSelected(this)">
+                            <option value="">-- Choose from approved templates --</option>
+                            <?php foreach ($approvedTemplates as $tpl): ?>
+                                <option value="<?= htmlspecialchars($tpl['name'] ?? '') ?>" 
+                                        data-lang="<?= htmlspecialchars($tpl['language'] ?? 'en') ?>">
+                                    <?= htmlspecialchars($tpl['name'] ?? '') ?> (<?= htmlspecialchars($tpl['language'] ?? 'en') ?>) - <?= htmlspecialchars($tpl['category'] ?? 'TEMPLATE') ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php endif; ?>
+
+                <div class="form-group">
+                    <label>Template Name</label>
+                    <input type="text" id="template_name_input" name="template_name" class="form-control" required placeholder="e.g. hello_world or welcome_message">
+                </div>
+                <div class="form-group">
+                    <label>Language Code</label>
+                    <input type="text" id="template_lang_input" name="template_language" class="form-control" value="en" placeholder="e.g. en, ar, es">
+                </div>
+                <div class="form-group">
+                    <label>Placeholder 1 ({{1}} - optional)</label>
+                    <input type="text" name="template_param_1" class="form-control" placeholder="Value for {{1}}">
+                </div>
+                <div class="form-group">
+                    <label>Placeholder 2 ({{2}} - optional)</label>
+                    <input type="text" name="template_param_2" class="form-control" placeholder="Value for {{2}}">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; background: #2563eb;">
+                    🚀 Send WhatsApp Template
+                </button>
+            </form>
+            <script>
+                function onTemplateSelected(sel) {
+                    if (sel.value) {
+                        document.getElementById('template_name_input').value = sel.value;
+                        var opt = sel.options[sel.selectedIndex];
+                        if (opt && opt.getAttribute('data-lang')) {
+                            document.getElementById('template_lang_input').value = opt.getAttribute('data-lang');
+                        }
+                    }
+                }
+            </script>
         </div>
     </div>
 
