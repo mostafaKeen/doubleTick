@@ -1,0 +1,29 @@
+# Environment configuration
+.env
+.env.local
+.env.*.local
+
+# Database & SQLite files
+storage/*.db
+storage/*.db-journal
+storage/*.db-wal
+storage/*.db-shm
+storage/*.sqlite
+storage/*.sqlite3
+storage/app.db
+
+# Storage logs & media
+storage/logs/*.log
+storage/media/*
+!storage/logs/.gitkeep
+!storage/media/.gitkeep
+
+# Composer dependencies
+/vendor/
+
+# OS / Editor junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
