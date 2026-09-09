@@ -46,6 +46,7 @@ return [
         'api_key' => getenv('DOUBLETICK_API_KEY') ?: '',
         'default_waba' => getenv('DOUBLETICK_DEFAULT_WABA') ?: '',
         'webhook_secret' => getenv('DOUBLETICK_WEBHOOK_SECRET') ?: '',
+        'custom_crm_identifier' => getenv('DOUBLETICK_CUSTOM_CRM_IDENTIFIER') ?: '',
     ],
     'bitrix24' => [
         'client_id' => getenv('B24_CLIENT_ID') ?: '',

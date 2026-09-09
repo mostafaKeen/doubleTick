@@ -28,10 +28,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_embed_url') {
     header('Content-Type: application/json');
     $phone = (string)($_GET['phone'] ?? '');
     $memberId = (string)($_GET['member_id'] ?? '');
+    $userId = (string)($_GET['user_id'] ?? '1');
 
     $b24 = $memberId ? BitrixClient::getByMemberId($memberId) : BitrixClient::getFirstActive();
     $apiKey = $b24 ? $b24->getDoubleTickApiKey() : $config['doubletick']['api_key'];
     $waba = $b24 ? $b24->getDoubleTickWaba() : $config['doubletick']['default_waba'];
+    $customCrmId = $b24 ? $b24->getCustomCrmIdentifier() : ($config['doubletick']['custom_crm_identifier'] ?? null);
 
     if (!$apiKey) {
         echo json_encode(['success' => false, 'error' => 'DoubleTick API Key not configured.']);
@@ -46,7 +48,25 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_embed_url') {
     try {
         $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
         $embedUrl = $dt->getEmbedUrl($phone, $waba);
-        echo json_encode(['success' => true, 'url' => $embedUrl]);
+        $ssoTokenAcquired = false;
+
+        // If Custom CRM integration is configured in DoubleTick, request single-use SSO token
+        if ($customCrmId) {
+            $sessionToken = $userId . ':' . ($memberId ?: 'default');
+            $embedToken = $dt->getCustomCrmEmbedToken($customCrmId, $sessionToken);
+            if ($embedToken) {
+                $separator = str_contains($embedUrl, '?') ? '&' : '?';
+                $embedUrl .= $separator . 'embedToken=' . urlencode($embedToken);
+                $ssoTokenAcquired = true;
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'url' => $embedUrl,
+            'sso_enabled' => $ssoTokenAcquired,
+            'has_custom_crm_id' => !empty($customCrmId)
+        ]);
     } catch (\Throwable $e) {
         Logger::error("Failed to generate embed URL: " . $e->getMessage(), ['phone' => $phone]);
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -259,6 +279,11 @@ header('Content-Security-Policy: frame-ancestors *');
     </div>
 </div>
 
+<div id="sso-tip" style="display: none; background: #1e293b; border-left: 4px solid var(--primary); padding: 8px 14px; margin-bottom: 8px; border-radius: 6px; font-size: 12px; color: #cbd5e1; justify-content: space-between; align-items: center;">
+    <span>⚡ <strong>1-Click Auto-Login</strong>: To skip login prompts, configure your DoubleTick Custom CRM Identifier in Connector Settings. Or log in once at <a href="https://web.doubletick.io" target="_blank" style="color: #34d399; text-decoration: underline;">web.doubletick.io</a> with your registered agent phone number.</span>
+    <button onclick="document.getElementById('sso-tip').style.display='none'" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:14px;padding:0 4px;">✕</button>
+</div>
+
 <div id="chat-container" style="height: calc(100vh - 80px); width: 100%;">
     <div id="loading" style="text-align: center; padding: 60px; color: var(--text-muted);">
         <p>Connecting to KEEN DoubleTick WhatsApp session...</p>
@@ -269,6 +294,7 @@ header('Content-Security-Policy: frame-ancestors *');
 <script>
     let currentPhone = '';
     let currentMemberId = '';
+    let currentUserId = '1';
 
     BX24.init(function() {
         const info = BX24.placement.info();
@@ -277,25 +303,25 @@ header('Content-Security-Policy: frame-ancestors *');
         
         const auth = BX24.getAuth();
         currentMemberId = auth ? auth.member_id : '';
+        if (auth && auth.user_id) {
+            currentUserId = auth.user_id;
+        }
 
         if (!entityId) {
-            document.getElementById('loading').innerHTML = '<p style="color: var(--danger)">No CRM entity ID found in context.</p>';
+            document.getElementById('loading').innerHTML = '<p style="color: var(--danger)">No CRM entity ID found.</p>';
             return;
         }
 
-        // Determine method based on placement
-        let method = 'crm.lead.get';
-        if (placement.indexOf('DEAL') !== -1) {
-            method = 'crm.deal.get';
-        } else if (placement.indexOf('CONTACT') !== -1) {
-            method = 'crm.contact.get';
-        } else if (placement.indexOf('COMPANY') !== -1) {
-            method = 'crm.company.get';
-        }
+        // Determine entity type
+        let entityType = 'lead';
+        if (placement.indexOf('DEAL') !== -1) entityType = 'deal';
+        else if (placement.indexOf('CONTACT') !== -1) entityType = 'contact';
+        else if (placement.indexOf('COMPANY') !== -1) entityType = 'company';
 
-        BX24.callMethod(method, { id: entityId }, function(res) {
+        // Load entity details to get phone
+        BX24.callMethod('crm.' + entityType + '.get', { id: entityId }, function(res) {
             if (res.error()) {
-                document.getElementById('loading').innerHTML = '<p style="color: var(--danger)">Error loading CRM record: ' + res.error() + '</p>';
+                document.getElementById('loading').innerHTML = '<p style="color: var(--danger)">Failed to load CRM record: ' + res.error() + '</p>';
                 return;
             }
 
@@ -307,7 +333,6 @@ header('Content-Security-Policy: frame-ancestors *');
                 phone = data.PHONE[0].VALUE;
             }
 
-            // If deal without direct phone, fetch linked contact phone
             if (!phone && data.CONTACT_ID) {
                 BX24.callMethod('crm.contact.get', { id: data.CONTACT_ID }, function(contactRes) {
                     if (!contactRes.error()) {
@@ -339,7 +364,14 @@ header('Content-Security-Policy: frame-ancestors *');
         document.getElementById('contact-phone').innerText = phone;
 
         // Fetch pre-authenticated Single-Sign-On Embed URL from backend
-        fetch('placement_tab.php?action=get_embed_url&phone=' + encodeURIComponent(phone) + '&member_id=' + encodeURIComponent(currentMemberId))
+        const queryParams = new URLSearchParams({
+            action: 'get_embed_url',
+            phone: phone,
+            member_id: currentMemberId || '',
+            user_id: currentUserId || '1'
+        });
+
+        fetch('placement_tab.php?' + queryParams.toString())
             .then(res => res.json())
             .then(data => {
                 if (data.success && data.url) {
@@ -347,6 +379,11 @@ header('Content-Security-Policy: frame-ancestors *');
                     iframe.src = data.url;
                     iframe.style.display = 'block';
                     document.getElementById('loading').style.display = 'none';
+
+                    if (!data.has_custom_crm_id) {
+                        const tip = document.getElementById('sso-tip');
+                        if (tip) tip.style.display = 'flex';
+                    }
                 } else {
                     document.getElementById('loading').innerHTML = '<p style="color: var(--danger)">Error loading chat: ' + (data.error || 'Unknown error') + '</p>';
                 }

@@ -79,6 +79,13 @@ class Database
                         }
                     }
                 }
+
+                // Ensure newly added columns exist in existing deployments
+                try {
+                    self::$instance->exec("ALTER TABLE b24_portals ADD COLUMN custom_crm_identifier VARCHAR(255) DEFAULT NULL");
+                } catch (\Throwable $e) {
+                    // Column already exists
+                }
             }
         }
     }

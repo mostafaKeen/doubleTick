@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS b24_portals (
     application_token VARCHAR(64) DEFAULT NULL,
     dt_api_key VARCHAR(255) DEFAULT NULL,
     dt_waba_number VARCHAR(32) DEFAULT NULL,
+    custom_crm_identifier VARCHAR(255) DEFAULT NULL,
     open_line_id INTEGER DEFAULT NULL,
     is_active INTEGER DEFAULT 1,
     installed_at DATETIME DEFAULT CURRENT_TIMESTAMP,

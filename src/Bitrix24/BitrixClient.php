@@ -76,6 +76,11 @@ class BitrixClient
         return $this->portal['dt_waba_number'] ?? (getenv('DOUBLETICK_DEFAULT_WABA') ?: null);
     }
 
+    public function getCustomCrmIdentifier(): ?string
+    {
+        return $this->portal['custom_crm_identifier'] ?? (getenv('DOUBLETICK_CUSTOM_CRM_IDENTIFIER') ?: null);
+    }
+
     /**
      * Check and refresh token if expired
      */

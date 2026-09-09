@@ -53,8 +53,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $stmt = $db->prepare("UPDATE b24_portals SET dt_api_key = :k, dt_waba_number = :w WHERE id = :id");
-            $stmt->execute(['k' => $key, 'w' => $waba, 'id' => $b24->getPortalId()]);
+            $customCrm = trim($_POST['dt_custom_crm_identifier'] ?? '');
+            $stmt = $db->prepare("UPDATE b24_portals SET dt_api_key = :k, dt_waba_number = :w, custom_crm_identifier = :c WHERE id = :id");
+            $stmt->execute(['k' => $key, 'w' => $waba, 'c' => $customCrm ?: null, 'id' => $b24->getPortalId()]);
             $notice = 'DoubleTick credentials updated successfully!' . ($waba ? " Connected WABA: {$waba}" : '');
             $b24 = BitrixClient::getFirstActive();
             $portalData = $b24 ? $b24->getPortalData() : [];
@@ -342,7 +343,20 @@ $recentWebhooks = $db->query("SELECT * FROM webhook_logs ORDER BY id DESC LIMIT 
                            value="<?= htmlspecialchars($portalData['dt_waba_number'] ?? '') ?>" 
                            placeholder="e.g. 919876543210 (without +)">
                 </div>
-                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <div class="form-group" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--card-border);">
+                    <label style="color: #38bdf8; font-weight: 600;">Custom CRM Identifier (1-Click Auto-Login)</label>
+                    <input type="text" name="dt_custom_crm_identifier" class="form-control" 
+                           value="<?= htmlspecialchars($portalData['custom_crm_identifier'] ?? '') ?>" 
+                           placeholder="e.g. intg_xxxxxxxxxxxx">
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; background: #0f172a; padding: 8px; border-radius: 6px; border: 1px solid var(--card-border);">
+                        ⚡ <strong>To enable auto-login in CRM tabs:</strong><br>
+                        1. Visit <a href="https://web.doubletick.io/v1/settings/integration/custom-crm" target="_blank" style="color: var(--primary); text-decoration: underline;">DoubleTick Custom CRM Settings</a><br>
+                        2. Set <strong>List Users API</strong>: <code><?= htmlspecialchars($config['app']['url']) ?>/api/custom-crm/users.php</code><br>
+                        3. Set <strong>Validate User API</strong>: <code><?= htmlspecialchars($config['app']['url']) ?>/api/custom-crm/validate.php</code><br>
+                        4. Paste the <strong>Integration Identifier</strong> above.
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 12px;">
                     <button type="submit" class="btn btn-primary" style="flex: 1;">Save Credentials</button>
                 </div>
             </form>

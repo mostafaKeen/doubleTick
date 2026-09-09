@@ -33,17 +33,19 @@ if ($b24 && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'save_settings') {
         $apiKey = trim($_POST['dt_api_key'] ?? '');
         $waba = trim($_POST['dt_waba'] ?? '');
+        $customCrmId = trim($_POST['dt_custom_crm_identifier'] ?? '');
         $openLine = !empty($_POST['open_line_id']) ? (int)$_POST['open_line_id'] : null;
 
         $db = Database::getInstance();
         $stmt = $db->prepare("
             UPDATE b24_portals 
-            SET dt_api_key = :key, dt_waba_number = :waba, open_line_id = :line, updated_at = datetime('now')
+            SET dt_api_key = :key, dt_waba_number = :waba, custom_crm_identifier = :custom_crm, open_line_id = :line, updated_at = datetime('now')
             WHERE id = :id
         ");
         $stmt->execute([
             'key' => $apiKey,
             'waba' => $waba,
+            'custom_crm' => $customCrmId ?: null,
             'line' => $openLine,
             'id' => $b24->getPortalId(),
         ]);
@@ -53,7 +55,7 @@ if ($b24 && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $im->activate($openLine, true);
         }
 
-        $message = "Settings updated and connector activated on Open Line #{$openLine}!";
+        $message = "Settings updated successfully!";
         // Reload client
         $b24 = BitrixClient::getByMemberId($memberId ?: $b24->getPortalData()['member_id']);
     }
@@ -158,6 +160,20 @@ header('Content-Security-Policy: frame-ancestors *');
                 <span class="stat-label">Inbound customer messages will route to this Open Line queue.</span>
             </div>
 
+            <div class="form-group" style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--card-border);">
+                <label style="color: #38bdf8; font-weight: 600;">DoubleTick Custom CRM Identifier (1-Click Auto-Login)</label>
+                <input type="text" name="dt_custom_crm_identifier" class="form-control" 
+                       value="<?= htmlspecialchars($b24 ? ($b24->getCustomCrmIdentifier() ?? '') : '') ?>" 
+                       placeholder="e.g. intg_xxxxxxxxxxxx">
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px; line-height: 1.6; background: rgba(15, 23, 42, 0.6); padding: 10px; border-radius: 6px; border: 1px solid #334155;">
+                    💡 <strong>How to enable 1-Click Auto-Login without phone/OTP:</strong><br>
+                    1. Go to <a href="https://web.doubletick.io/v1/settings/integration/custom-crm" target="_blank" style="color: #34d399; text-decoration: underline;">DoubleTick Custom CRM Integration</a> in your DoubleTick console.<br>
+                    2. Set <strong>List Users API</strong>: <code><?= htmlspecialchars($config['app']['url']) ?>/api/custom-crm/users.php</code><br>
+                    3. Set <strong>Validate User API</strong>: <code><?= htmlspecialchars($config['app']['url']) ?>/api/custom-crm/validate.php</code><br>
+                    4. Copy the generated <strong>Integration Identifier</strong> and paste it into the box above.
+                </div>
+            </div>
+
             <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
                 <button type="submit" class="btn btn-primary">Save & Connect</button>
             </div>
@@ -167,7 +183,7 @@ header('Content-Security-Policy: frame-ancestors *');
 
 <script>
     BX24.init(function() {
-        BX24.resizeWindow(680, 520);
+        BX24.resizeWindow(680, 640);
     });
 </script>
 

@@ -218,6 +218,52 @@ class DoubleTickClient
     }
 
     /**
+     * Request a short-lived Embed SSO Token via DoubleTick Custom CRM API
+     */
+    public function getCustomCrmEmbedToken(string $identifier, string $sessionToken): ?string
+    {
+        $url = 'https://aiapi.doubletick.io/v1/custom-crm/embed/token';
+        $payload = [
+            'identifier' => $identifier,
+            'sessionToken' => $sessionToken,
+        ];
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            'Authorization: ' . $this->apiKey,
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+
+        if ($err) {
+            Logger::error("Custom CRM embed token cURL error: {$err}");
+            return null;
+        }
+
+        $data = json_decode($response ?: '', true);
+        if ($httpCode >= 200 && $httpCode < 300 && !empty($data['token'])) {
+            return $data['token'];
+        }
+
+        Logger::warning("DoubleTick Custom CRM embed token response", [
+            'status' => $httpCode,
+            'response' => $data,
+            'identifier' => $identifier
+        ]);
+        return null;
+    }
+
+    /**
      * Retrieve AI summary of 1:1 chat
      */
     public function getChatAiSummary(string $phone, ?string $startDate = null, ?string $endDate = null): array
