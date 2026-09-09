@@ -26,10 +26,18 @@ if (file_exists($envFile)) {
     }
 }
 
+$defaultUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'off' ? 'http' : 'https') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+if (isset($_SERVER['SCRIPT_NAME'])) {
+    $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
+    if ($scriptDir && $scriptDir !== '/' && $scriptDir !== '\\' && $scriptDir !== '.') {
+        $defaultUrl .= str_replace('\\', '/', $scriptDir);
+    }
+}
+
 return [
     'app' => [
         'name' => 'KEEN DoubleTick',
-        'url' => getenv('APP_URL') ?: 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'),
+        'url' => getenv('APP_URL') ?: $defaultUrl,
         'env' => getenv('APP_ENV') ?: 'production',
         'debug' => (bool)(getenv('APP_DEBUG') ?: false),
     ],

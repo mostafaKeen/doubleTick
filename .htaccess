@@ -1,0 +1,23 @@
+# KEEN DoubleTick Bitrix24 Local App Root Configuration
+
+<IfModule mod_headers.c>
+    # Allow Bitrix24 to embed placement tabs and connector iframes
+    Header unset X-Frame-Options
+    Header set Content-Security-Policy "frame-ancestors *"
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Deny direct access to sensitive directories and dot-files
+    RewriteRule ^(\.git|\.env|storage|config|src|database|tests) - [F,L]
+
+    # If requested file or directory exists directly in root, serve it
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Otherwise forward to public/ directory
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
+</IfModule>

@@ -134,6 +134,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
     exit;
 }
+
+header_remove('X-Frame-Options');
+header('Content-Security-Policy: frame-ancestors *');
 ?>
 <!DOCTYPE html>
 <html lang="en">

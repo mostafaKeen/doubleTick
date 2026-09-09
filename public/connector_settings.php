@@ -65,6 +65,9 @@ if ($b24) {
     $linesRes = $b24->call('imopenlines.config.list.get');
     $openLines = $linesRes['result'] ?? [];
 }
+
+header_remove('X-Frame-Options');
+header('Content-Security-Policy: frame-ancestors *');
 ?>
 <!DOCTYPE html>
 <html lang="en">

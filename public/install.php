@@ -115,6 +115,9 @@ if ($authId && $domain && $memberId) {
         Logger::error("Installation failed: " . $e->getMessage());
     }
 }
+
+header_remove('X-Frame-Options');
+header('Content-Security-Policy: frame-ancestors *');
 ?>
 <!DOCTYPE html>
 <html lang="en">
