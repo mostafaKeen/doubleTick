@@ -27,38 +27,118 @@ $config = require dirname(__DIR__) . '/config/config.php';
 /**
  * Safely extract text, media URL, and media type from any DoubleTick message structure
  */
+/**
+ * Safely extract text, media URL, and media type from any DoubleTick/WhatsApp message structure
+ */
 function extractDtMessageContent($msg): array {
     $text = '';
     $mediaUrl = null;
     $mediaType = 'text';
 
     if (is_string($msg)) {
-        $text = $msg;
-    } elseif (is_array($msg)) {
-        if (isset($msg['text'])) {
-            $text = is_array($msg['text']) ? ($msg['text']['body'] ?? $msg['text']['text'] ?? '') : (string)$msg['text'];
-        } elseif (isset($msg['caption'])) {
-            $text = is_array($msg['caption']) ? ($msg['caption']['body'] ?? '') : (string)$msg['caption'];
-        } elseif (isset($msg['body'])) {
-            $text = (string)$msg['body'];
+        $trimmed = trim($msg);
+        if ($trimmed !== '' && ($trimmed[0] === '{' || $trimmed[0] === '[')) {
+            $decoded = json_decode($trimmed, true);
+            if (is_array($decoded)) {
+                return extractDtMessageContent($decoded);
+            }
         }
+        return ['text' => $msg, 'media_url' => null, 'media_type' => 'text'];
+    }
+    if (!is_array($msg)) {
+        return ['text' => (string)$msg, 'media_url' => null, 'media_type' => 'text'];
+    }
 
-        if (!empty($msg['url'])) {
-            $mediaUrl = (string)$msg['url'];
-        } elseif (!empty($msg['mediaUrl'])) {
-            $mediaUrl = (string)$msg['mediaUrl'];
+    // 1. Direct media URL checks
+    foreach (['mediaUrl', 'url', 'fileUrl', 'attachmentUrl', 'link'] as $urlKey) {
+        if (!empty($msg[$urlKey]) && is_string($msg[$urlKey])) {
+            $mediaUrl = $msg[$urlKey];
+            break;
         }
+    }
 
-        if (!empty($msg['messageType'])) {
-            $mediaType = strtolower((string)$msg['messageType']);
-        } elseif (!empty($msg['type'])) {
-            $mediaType = strtolower((string)$msg['type']);
+    // 2. Direct message/media type
+    if (!empty($msg['messageType'])) {
+        $mediaType = strtolower((string)$msg['messageType']);
+    } elseif (!empty($msg['type'])) {
+        $mediaType = strtolower((string)$msg['type']);
+    }
+
+    // 3. Check media sub-objects (image, video, audio, document, file, voice)
+    foreach (['image', 'video', 'audio', 'document', 'file', 'media', 'voice'] as $mediaKey) {
+        if (!empty($msg[$mediaKey]) && is_array($msg[$mediaKey])) {
+            $mediaType = $mediaKey;
+            if (empty($mediaUrl)) {
+                $mediaUrl = $msg[$mediaKey]['url'] ?? $msg[$mediaKey]['link'] ?? null;
+            }
+            if (empty($text) && !empty($msg[$mediaKey]['caption'])) {
+                $text = is_array($msg[$mediaKey]['caption']) ? ($msg[$mediaKey]['caption']['body'] ?? '') : (string)$msg[$mediaKey]['caption'];
+            }
         }
+    }
 
-        // If text is still empty and no media, check if any string field exists
-        if ($text === '' && empty($mediaUrl)) {
-            foreach ($msg as $k => $v) {
-                if (is_string($v) && !in_array($k, ['id', 'messageId', 'type', 'messageType', 'status', 'direction', 'messageOriginType'])) {
+    // 4. Nested 'message' object check (recurse)
+    if (empty($text) && isset($msg['message'])) {
+        $nested = extractDtMessageContent($msg['message']);
+        if ($nested['text'] !== '') $text = $nested['text'];
+        if (!$mediaUrl && $nested['media_url']) $mediaUrl = $nested['media_url'];
+        if ($nested['media_type'] !== 'text') $mediaType = $nested['media_type'];
+    }
+
+    // 5. Common text container fields
+    if (empty($text)) {
+        foreach (['text', 'body', 'caption', 'content', 'messageText', 'description', 'title'] as $tKey) {
+            if (isset($msg[$tKey])) {
+                if (is_string($msg[$tKey]) && trim($msg[$tKey]) !== '') {
+                    $text = trim($msg[$tKey]);
+                    break;
+                } elseif (is_array($msg[$tKey])) {
+                    $inner = $msg[$tKey]['body'] ?? $msg[$tKey]['text'] ?? $msg[$tKey]['content'] ?? $msg[$tKey]['value'] ?? null;
+                    if (is_string($inner) && trim($inner) !== '') {
+                        $text = trim($inner);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // 6. Interactive / Buttons / Quick replies
+    if (empty($text) && !empty($msg['interactive']) && is_array($msg['interactive'])) {
+        $inter = $msg['interactive'];
+        if (!empty($inter['button_reply']['title'])) {
+            $text = "🔘 " . $inter['button_reply']['title'];
+        } elseif (!empty($inter['list_reply']['title'])) {
+            $text = "📋 " . $inter['list_reply']['title'];
+        } elseif (!empty($inter['body']['text'])) {
+            $text = $inter['body']['text'];
+        }
+    }
+    if (empty($text) && !empty($msg['button']) && is_array($msg['button'])) {
+        $text = "🔘 " . ($msg['button']['text'] ?? $msg['button']['payload'] ?? '');
+    }
+
+    // 7. Template checks
+    if (empty($text) && !empty($msg['templateId'])) {
+        $text = "📋 Template: " . $msg['templateId'];
+        $mediaType = 'template';
+    } elseif (empty($text) && !empty($msg['template_name'])) {
+        $text = "📋 Template: " . $msg['template_name'];
+        $mediaType = 'template';
+    }
+
+    // 8. Location checks
+    if (empty($text) && !empty($msg['location']) && is_array($msg['location'])) {
+        $locName = $msg['location']['name'] ?? 'Location';
+        $text = "📍 " . $locName;
+    }
+
+    // 9. If still empty, scan any string value in the array (ignoring technical ID fields)
+    if ($text === '' && empty($mediaUrl)) {
+        $ignored = ['id', 'messageId', 'dtMessageId', 'senderId', 'integrationId', 'type', 'messageType', 'status', 'direction', 'messageOriginType', 'integrationWabaNumber', 'integrationDisplayName', 'from', 'to', 'wabaNumber', 'customerNumber'];
+        foreach ($msg as $k => $v) {
+            if (is_string($v) && !in_array($k, $ignored) && !is_numeric($v) && strlen($v) > 0 && strlen($v) < 2000) {
+                if ($v[0] !== '{' && $v[0] !== '[') {
                     $text = $v;
                     break;
                 }
@@ -97,80 +177,103 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
     $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
     $messages = [];
     $seenIds = [];
+    $rawDtRes = null;
+    $dtFetchError = null;
 
     $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
 
     // 1. Fetch remote messages from DoubleTick API
     try {
         $dtRes = $dt->getChatMessages($cleanPhone, $waba);
+        $rawDtRes = $dtRes;
+
+        $remoteItems = [];
         if (!empty($dtRes['messages']) && is_array($dtRes['messages'])) {
-            foreach ($dtRes['messages'] as $m) {
-                $msgId = (string)($m['id'] ?? $m['messageId'] ?? uniqid());
+            $remoteItems = $dtRes['messages'];
+        } elseif (!empty($dtRes['data']['messages']) && is_array($dtRes['data']['messages'])) {
+            $remoteItems = $dtRes['data']['messages'];
+        } elseif (!empty($dtRes['data']) && is_array($dtRes['data'])) {
+            $remoteItems = $dtRes['data'];
+        }
 
-                // Direction: messageOriginType is CUSTOMER (inbound) or USER / ORGANIZATION / SYSTEM (outbound)
-                $origin = strtoupper((string)($m['messageOriginType'] ?? ''));
-                if ($origin === 'CUSTOMER') {
-                    $isOutbound = false;
-                } elseif ($origin !== '') {
-                    $isOutbound = true;
-                } else {
-                    $sender = preg_replace('/[^0-9]/', '', (string)($m['sender'] ?? $m['from'] ?? ''));
-                    $cleanWaba = preg_replace('/[^0-9]/', '', (string)$waba);
-                    $isOutbound = ($sender && ($sender === $cleanWaba || str_ends_with($cleanWaba, $sender)));
-                }
+        foreach ($remoteItems as $m) {
+            $msgId = (string)($m['id'] ?? $m['messageId'] ?? uniqid());
 
-                // Extract content
-                $content = extractDtMessageContent($m['message'] ?? $m);
-                $text = $content['text'];
-                $mediaUrl = $content['media_url'] ?: ($m['mediaUrl'] ?? null);
-
-                // Timestamp: DoubleTick messageTime is epoch milliseconds (e.g. 1737612046032)
-                $rawTs = $m['messageTime'] ?? $m['timestamp'] ?? null;
-                if (!empty($rawTs)) {
-                    if (is_numeric($rawTs)) {
-                        $ts = ((float)$rawTs > 2000000000) ? (int)round((float)$rawTs / 1000) : (int)$rawTs;
-                    } else {
-                        $ts = strtotime((string)$rawTs) ?: time();
-                    }
-                } else {
-                    $ts = time();
-                }
-
-                // Status
-                $status = 'sent';
-                if (!empty($m['readCount']) && (int)$m['readCount'] > 0) {
-                    $status = 'read';
-                } elseif (!empty($m['deliveryCount']) && (int)$m['deliveryCount'] > 0) {
-                    $status = 'delivered';
-                } elseif (!empty($m['sentCount']) && (int)$m['sentCount'] > 0) {
-                    $status = 'sent';
-                } elseif (!empty($m['erroredCount']) && (int)$m['erroredCount'] > 0) {
-                    $status = 'failed';
-                } elseif (!empty($m['status'])) {
-                    $status = strtolower((string)$m['status']);
-                }
-
-                $isTemplate = !empty($m['templateId']);
-
-                $seenIds[$msgId] = true;
-                $messages[] = [
-                    'id' => $msgId,
-                    'direction' => $isOutbound ? 'OUTBOUND' : 'INBOUND',
-                    'text' => $text,
-                    'media_url' => $mediaUrl,
-                    'timestamp' => $ts,
-                    'time_str' => date('h:i A', $ts),
-                    'date_str' => date('M j, Y', $ts),
-                    'status' => $status,
-                    'type' => $isTemplate ? 'template' : ($mediaUrl ? 'media' : 'text'),
-                ];
+            // Direction: messageOriginType is CUSTOMER (inbound) or USER / ORGANIZATION / SYSTEM (outbound)
+            $origin = strtoupper((string)($m['messageOriginType'] ?? ''));
+            if ($origin === 'CUSTOMER') {
+                $isOutbound = false;
+            } elseif ($origin !== '') {
+                $isOutbound = true;
+            } else {
+                $sender = preg_replace('/[^0-9]/', '', (string)($m['sender'] ?? $m['from'] ?? ''));
+                $cleanWaba = preg_replace('/[^0-9]/', '', (string)$waba);
+                $isOutbound = ($sender && ($sender === $cleanWaba || str_ends_with($cleanWaba, $sender)));
             }
+
+            // Extract content
+            $content = extractDtMessageContent($m['message'] ?? $m);
+            $text = $content['text'];
+            $mediaUrl = $content['media_url'] ?: ($m['mediaUrl'] ?? null);
+
+            // If text is still empty, check root fields of $m
+            if ($text === '') {
+                if (!empty($m['text'])) $text = is_array($m['text']) ? ($m['text']['body'] ?? json_encode($m['text'])) : (string)$m['text'];
+                elseif (!empty($m['content'])) $text = is_array($m['content']) ? ($m['content']['body'] ?? json_encode($m['content'])) : (string)$m['content'];
+                elseif (!empty($m['body'])) $text = (string)$m['body'];
+                elseif (!empty($m['caption'])) $text = (string)$m['caption'];
+                elseif (!empty($m['templateId'])) $text = "📋 Template: " . $m['templateId'];
+            }
+
+            // Timestamp: DoubleTick messageTime is epoch milliseconds (e.g. 1737612046032)
+            $rawTs = $m['messageTime'] ?? $m['timestamp'] ?? null;
+            if (!empty($rawTs)) {
+                if (is_numeric($rawTs)) {
+                    $ts = ((float)$rawTs > 2000000000) ? (int)round((float)$rawTs / 1000) : (int)$rawTs;
+                } else {
+                    $ts = strtotime((string)$rawTs) ?: time();
+                }
+            } else {
+                $ts = time();
+            }
+
+            // Status
+            $status = 'sent';
+            if (!empty($m['readCount']) && (int)$m['readCount'] > 0) {
+                $status = 'read';
+            } elseif (!empty($m['deliveryCount']) && (int)$m['deliveryCount'] > 0) {
+                $status = 'delivered';
+            } elseif (!empty($m['sentCount']) && (int)$m['sentCount'] > 0) {
+                $status = 'sent';
+            } elseif (!empty($m['erroredCount']) && (int)$m['erroredCount'] > 0) {
+                $status = 'failed';
+            } elseif (!empty($m['status'])) {
+                $status = strtolower((string)$m['status']);
+            }
+
+            $isTemplate = !empty($m['templateId']);
+
+            $seenIds[$msgId] = true;
+            $messages[] = [
+                'id' => $msgId,
+                'direction' => $isOutbound ? 'OUTBOUND' : 'INBOUND',
+                'text' => $text,
+                'media_url' => $mediaUrl,
+                'timestamp' => $ts,
+                'time_str' => date('h:i A', $ts),
+                'date_str' => date('M j, Y', $ts),
+                'status' => $status,
+                'type' => $isTemplate ? 'template' : ($mediaUrl ? 'media' : 'text'),
+                'raw_message' => $m,
+            ];
         }
     } catch (\Throwable $e) {
+        $dtFetchError = $e->getMessage();
         Logger::warning("Could not fetch remote chat messages: " . $e->getMessage());
     }
 
     // 2. Fetch local messages from database (sent via Bitrix24 or local tab)
+    $localRowsCount = 0;
     try {
         $db = Database::getInstance();
         $stmt = $db->prepare("
@@ -184,6 +287,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
             'clean_phone' => '%' . $cleanPhone . '%',
         ]);
         $localRows = $stmt->fetchAll();
+        $localRowsCount = count($localRows);
 
         foreach ($localRows as $row) {
             $dtId = (string)($row['dt_message_id'] ?? '');
@@ -193,19 +297,37 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
             $text = '';
             $mediaUrl = null;
             if (!empty($row['raw_data'])) {
-                $raw = json_decode($row['raw_data'], true);
-                if (is_array($raw)) {
-                    $content = extractDtMessageContent($raw);
-                    $text = $content['text'];
-                    $mediaUrl = $content['media_url'];
-                    if (!$text && !empty($raw['template_name'])) {
-                        $text = "📋 Template: " . $raw['template_name'];
+                $content = extractDtMessageContent($row['raw_data']);
+                $text = $content['text'];
+                $mediaUrl = $content['media_url'];
+                if (!$text && !empty($raw['template_name'])) {
+                    $text = "📋 Template: " . $raw['template_name'];
+                }
+            }
+
+            // Auto-recovery from webhook logs if raw_data was empty
+            if ($text === '') {
+                try {
+                    $whSearch = $dtId ?: $phoneSuffix;
+                    $whStmt = $db->prepare("SELECT payload FROM webhook_logs WHERE payload LIKE :search ORDER BY id DESC LIMIT 1");
+                    $whStmt->execute(['search' => '%' . $whSearch . '%']);
+                    $whRow = $whStmt->fetch();
+                    if ($whRow && !empty($whRow['payload'])) {
+                        $whContent = extractDtMessageContent($whRow['payload']);
+                        if ($whContent['text'] !== '') {
+                            $text = $whContent['text'];
+                            if (!$mediaUrl && $whContent['media_url']) {
+                                $mediaUrl = $whContent['media_url'];
+                            }
+                            $upStmt = $db->prepare("UPDATE message_mappings SET raw_data = :rd WHERE id = :id");
+                            $upStmt->execute([
+                                'rd' => json_encode(['text' => $text, 'recovered_from_webhook' => true]),
+                                'id' => $row['id'],
+                            ]);
+                        }
                     }
-                    if (!$mediaUrl && !empty($raw['files'][0]['url'])) {
-                        $mediaUrl = $raw['files'][0]['url'];
-                    }
-                } else {
-                    $text = (string)$row['raw_data'];
+                } catch (\Throwable $whEx) {
+                    // Non-fatal recovery attempt
                 }
             }
 
@@ -220,6 +342,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
                 'date_str' => date('M j, Y', $ts),
                 'status' => strtolower((string)($row['status'] ?? 'sent')),
                 'type' => (string)($row['message_type'] ?? 'text'),
+                'raw_message' => $row,
             ];
         }
     } catch (\Throwable $e) {
@@ -261,6 +384,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
         'window_status' => $windowStatus,
         'waba' => $waba,
         'phone' => $cleanPhone,
+        'raw_dt_response' => $rawDtRes,
+        'dt_fetch_error' => $dtFetchError,
+        'debug_info' => [
+            'remote_count' => count($remoteItems ?? []),
+            'local_count' => $localRowsCount,
+            'total_messages' => count($messages),
+            'waba' => $waba,
+            'phone' => $cleanPhone,
+            'timestamp' => date('Y-m-d H:i:s'),
+        ],
     ]);
     exit;
 }
@@ -315,6 +448,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'message_id' => $msgId,
             'text' => $text,
             'time_str' => date('h:i A'),
+            'raw_response' => $res,
         ]);
     } catch (\Throwable $e) {
         $msg = $e->getMessage();
@@ -323,6 +457,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'success' => false,
             'error' => $msg,
             'window_closed' => $isClosed,
+            'raw_error' => $e->getTraceAsString(),
         ]);
     }
     exit;
@@ -361,7 +496,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $msgDetail = is_array($res['raw']['message']) ? implode(', ', $res['raw']['message']) : (string)$res['raw']['message'];
                 $errDetail .= " ({$msgDetail})";
             }
-            echo json_encode(['success' => false, 'error' => $errDetail]);
+            echo json_encode(['success' => false, 'error' => $errDetail, 'raw_response' => $res]);
         } else {
             $msgId = $res['messageId'] ?? ($res['messages'][0]['messageId'] ?? 'OK');
 
@@ -392,10 +527,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 Logger::error("Failed to log template message in database: " . $dbEx->getMessage());
             }
 
-            echo json_encode(['success' => true, 'message_id' => $msgId]);
+            echo json_encode(['success' => true, 'message_id' => $msgId, 'raw_response' => $res]);
         }
     } catch (\Throwable $e) {
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => $e->getMessage(), 'raw_error' => $e->getTraceAsString()]);
     }
     exit;
 }
@@ -414,7 +549,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_templates') {
         $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
         $tplRes = $dt->getTemplates('APPROVED');
         $templates = isset($tplRes['templates']) && is_array($tplRes['templates']) ? $tplRes['templates'] : (is_array($tplRes) ? $tplRes : []);
-        echo json_encode(['success' => true, 'templates' => $templates]);
+        echo json_encode(['success' => true, 'templates' => $templates, 'raw_response' => $tplRes]);
     } catch (\Throwable $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
@@ -436,7 +571,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_ai_summary') {
     try {
         $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
         $summary = $dt->getChatAiSummary($phone);
-        echo json_encode(['success' => true, 'data' => $summary]);
+        echo json_encode(['success' => true, 'data' => $summary, 'raw_response' => $summary]);
     } catch (\Throwable $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
@@ -898,6 +1033,10 @@ header('Content-Security-Policy: frame-ancestors *');
         </div>
     </div>
     <div class="tab-actions">
+        <button class="btn btn-secondary" onclick="openDebugModal()" id="btn-open-debug-top" title="View Diagnostics & Copy Request/Response Debug Logs">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Debug Logs
+        </button>
         <button class="btn btn-warning-glow" onclick="openTemplateModal()" id="btn-open-template-top">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
             Send Template
@@ -1030,7 +1169,113 @@ header('Content-Security-Policy: frame-ancestors *');
     </div>
 </div>
 
+<!-- Diagnostics & Debug Modal -->
+<div id="debug-modal" class="modal">
+    <div class="modal-content" style="max-width: 680px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                Diagnostics & Console Debug Logs
+            </h3>
+            <button onclick="closeDebugModal()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 20px;">&times;</button>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+            Every request, response, and DoubleTick raw payload is recorded below and in your browser's Developer Console (F12). Click <strong>Copy to Clipboard</strong> to copy the JSON and send it back.
+        </p>
+        <textarea id="debug-textarea" class="form-control" style="height: 320px; font-family: monospace; font-size: 11px; line-height: 1.45; white-space: pre; background: #0b141a; resize: vertical; border-color: rgba(255,255,255,0.15);" readonly></textarea>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px;">
+            <span id="debug-copy-status" style="font-size: 12px; color: #4ade80; font-weight: 600;"></span>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary" onclick="closeDebugModal()">Close</button>
+                <button class="btn btn-primary" onclick="copyDebugJsonToClipboard()">📋 Copy to Clipboard</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+    // -------------------------------------------------------------
+    // Comprehensive Debug Logger & Ring Buffer
+    // -------------------------------------------------------------
+    window.keenDebugStore = {
+        crmInfo: {},
+        requests: [],
+        lastChatHistoryResponse: null,
+        logReq: function(action, details) {
+            const entry = {
+                timestamp: new Date().toISOString(),
+                type: 'REQUEST',
+                action: action,
+                details: details
+            };
+            this.requests.push(entry);
+            if (this.requests.length > 100) this.requests.shift();
+
+            console.groupCollapsed('%c[KEEN DoubleTick] 🚀 REQUEST: ' + action, 'color: #38bdf8; font-weight: bold; background: #0f172a; padding: 2px 6px; border-radius: 4px;');
+            console.log('Action:', action);
+            console.log('Payload / Params:', details);
+            console.log('Time:', new Date().toLocaleTimeString());
+            console.groupEnd();
+        },
+        logRes: function(action, data, status) {
+            const ok = (data && data.success !== false);
+            const entry = {
+                timestamp: new Date().toISOString(),
+                type: 'RESPONSE',
+                action: action,
+                status: status || 200,
+                success: ok,
+                data: data
+            };
+            this.requests.push(entry);
+            if (this.requests.length > 100) this.requests.shift();
+
+            const badgeColor = ok ? '#4ade80' : '#f87171';
+            console.groupCollapsed('%c[KEEN DoubleTick] 📦 RESPONSE: ' + action + ' [' + (ok ? 'SUCCESS' : 'FAILED') + ']', 'color: ' + badgeColor + '; font-weight: bold; background: #0f172a; padding: 2px 6px; border-radius: 4px;');
+            console.log('Action:', action);
+            console.log('Status:', status || 200);
+            console.log('Response Body:', data);
+            if (data && data.messages) {
+                console.log('Messages count:', data.messages.length);
+                console.table(data.messages.map(m => ({ id: m.id, dir: m.direction, type: m.type, status: m.status, text: m.text })));
+            }
+            if (data && data.raw_dt_response) {
+                console.log('Raw DoubleTick API response:', data.raw_dt_response);
+            }
+            if (data && data.error) {
+                console.warn('Error detail:', data.error);
+            }
+            console.log('Time:', new Date().toLocaleTimeString());
+            console.groupEnd();
+        },
+        logErr: function(action, err) {
+            const entry = {
+                timestamp: new Date().toISOString(),
+                type: 'ERROR',
+                action: action,
+                error: (err && err.message) ? err.message : String(err)
+            };
+            this.requests.push(entry);
+            if (this.requests.length > 100) this.requests.shift();
+
+            console.group('%c[KEEN DoubleTick] ❌ ERROR: ' + action, 'color: #ef4444; font-weight: bold;');
+            console.error('Error Details:', err);
+            console.groupEnd();
+        },
+        exportJson: function() {
+            return JSON.stringify({
+                app: 'KEEN DoubleTick Messenger',
+                version: '2.5.0',
+                exportedAt: new Date().toISOString(),
+                crmInfo: this.crmInfo,
+                lastChatHistoryResponse: this.lastChatHistoryResponse,
+                recentNetworkLogs: this.requests
+            }, null, 2);
+        }
+    };
+
+    console.log('%c[KEEN DoubleTick] WhatsApp Messenger initialized with full debug logging.\nClick "Debug Logs" in the top toolbar or inspect window.keenDebugStore anytime.', 'color: #3F906D; font-weight: bold; font-size: 13px;');
+
     let currentPhone = '';
     let currentMemberId = '';
     let currentContactName = '';
@@ -1047,6 +1292,16 @@ header('Content-Security-Policy: frame-ancestors *');
             currentMemberId = auth.member_id;
         }
 
+        window.keenDebugStore.crmInfo = {
+            placement: placement,
+            entityId: entityId,
+            memberId: currentMemberId,
+            domain: (auth && auth.domain) ? auth.domain : null,
+            options: info.options
+        };
+
+        window.keenDebugStore.logReq('BX24.init', window.keenDebugStore.crmInfo);
+
         let entityMethod = 'crm.lead.get';
         if (placement.indexOf('DEAL') !== -1) entityMethod = 'crm.deal.get';
         if (placement.indexOf('CONTACT') !== -1) entityMethod = 'crm.contact.get';
@@ -1054,15 +1309,21 @@ header('Content-Security-Policy: frame-ancestors *');
 
         if (!entityId) {
             document.getElementById('loading-state').innerHTML = '<p style="color: var(--danger);">Unable to identify CRM record ID.</p>';
+            window.keenDebugStore.logErr('BX24.init', 'No entityId found in placement options');
             return;
         }
 
+        window.keenDebugStore.logReq('BX24.callMethod(' + entityMethod + ')', { id: entityId });
+
         BX24.callMethod(entityMethod, { id: entityId }, function(res) {
             if (res.error()) {
+                window.keenDebugStore.logErr('BX24.callMethod(' + entityMethod + ')', res.error());
                 document.getElementById('loading-state').innerHTML = '<p style="color: var(--danger);">Failed to load CRM record: ' + res.error() + '</p>';
                 return;
             }
             const data = res.data();
+            window.keenDebugStore.logRes('BX24.callMethod(' + entityMethod + ')', data);
+
             let phone = '';
             let name = data.TITLE || data.NAME || 'Customer';
             if (data.LAST_NAME) name += ' ' + data.LAST_NAME;
@@ -1073,9 +1334,11 @@ header('Content-Security-Policy: frame-ancestors *');
 
             // If deal without direct phone, fetch linked contact
             if (!phone && data.CONTACT_ID) {
+                window.keenDebugStore.logReq('BX24.callMethod(crm.contact.get)', { id: data.CONTACT_ID });
                 BX24.callMethod('crm.contact.get', { id: data.CONTACT_ID }, function(contactRes) {
                     if (!contactRes.error()) {
                         const contactData = contactRes.data();
+                        window.keenDebugStore.logRes('BX24.callMethod(crm.contact.get)', contactData);
                         name = (contactData.NAME || '') + ' ' + (contactData.LAST_NAME || '');
                         if (contactData.PHONE && contactData.PHONE.length > 0) {
                             initChat(contactData.PHONE[0].VALUE, name.trim() || 'Contact');
@@ -1083,6 +1346,7 @@ header('Content-Security-Policy: frame-ancestors *');
                             showNoPhone();
                         }
                     } else {
+                        window.keenDebugStore.logErr('BX24.callMethod(crm.contact.get)', contactRes.error());
                         showNoPhone();
                     }
                 });
@@ -1102,6 +1366,9 @@ header('Content-Security-Policy: frame-ancestors *');
     function initChat(phone, name) {
         currentPhone = phone;
         currentContactName = name;
+        window.keenDebugStore.crmInfo.phone = phone;
+        window.keenDebugStore.crmInfo.contactName = name;
+
         document.getElementById('contact-name').innerText = name;
         document.getElementById('contact-phone').innerText = phone;
         document.getElementById('crm-param1').value = name;
@@ -1138,9 +1405,15 @@ header('Content-Security-Policy: frame-ancestors *');
     function loadChatHistory(forceScroll) {
         if (!currentPhone) return;
 
-        fetch('placement_tab.php?action=get_chat_history&phone=' + encodeURIComponent(currentPhone) + '&member_id=' + encodeURIComponent(currentMemberId))
+        const url = 'placement_tab.php?action=get_chat_history&phone=' + encodeURIComponent(currentPhone) + '&member_id=' + encodeURIComponent(currentMemberId);
+        window.keenDebugStore.logReq('get_chat_history', { url, phone: currentPhone, memberId: currentMemberId });
+
+        fetch(url)
             .then(res => res.json())
             .then(data => {
+                window.keenDebugStore.lastChatHistoryResponse = data;
+                window.keenDebugStore.logRes('get_chat_history', data);
+
                 if (!data.success) {
                     if (lastRenderedCount === 0) {
                         document.getElementById('loading-state').innerHTML = '<p style="color: var(--danger);">' + (data.error || 'Failed to load messages') + '</p>';
@@ -1155,11 +1428,12 @@ header('Content-Security-Policy: frame-ancestors *');
                 renderMessages(messages, forceScroll);
             })
             .catch(err => {
-                console.warn('Chat history poll error', err);
+                window.keenDebugStore.logErr('get_chat_history', err);
             });
     }
 
     function updateWindowBadge(win) {
+        window.keenDebugStore.crmInfo.windowStatus = win;
         const dot = document.getElementById('session-dot');
         const text = document.getElementById('session-text');
         const banner = document.getElementById('window-banner');
@@ -1236,16 +1510,30 @@ header('Content-Security-Policy: frame-ancestors *');
             }
 
             if (m.media_url) {
-                bubbleContent += `<div style="margin-bottom: 6px;"><a href="${escapeHtml(m.media_url)}" target="_blank" style="color: #60a5fa; text-decoration: underline;">📎 View Attachment</a></div>`;
+                bubbleContent += `<div style="margin-bottom: 6px;"><a href="${escapeHtml(m.media_url)}" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: underline;">📎 View Attachment</a></div>`;
             }
 
-            const textContent = formatMessageText(m.text);
+            let textContent = formatMessageText(m.text);
+            if (!textContent && m.raw_message) {
+                const rm = m.raw_message;
+                const candidate = (rm.message && (rm.message.text || rm.message.body || rm.message.caption || rm.message.content))
+                    || rm.text || rm.body || rm.content || rm.caption
+                    || (rm.templateId ? '📋 Template: ' + rm.templateId : null);
+                if (candidate) {
+                    textContent = formatMessageText(candidate);
+                }
+            }
+
             if (textContent) {
                 bubbleContent += `<div style="white-space: pre-wrap;">${escapeHtml(textContent)}</div>`;
-            } else if (!m.media_url && !isTpl) {
-                bubbleContent += `<div style="font-style: italic; opacity: 0.7;">[WhatsApp message]</div>`;
+            } else if (m.media_url) {
+                // Media only
+            } else if (isTpl) {
+                bubbleContent += `<div style="font-style: italic; opacity: 0.85;">📋 Template message</div>`;
+            } else {
+                bubbleContent += `<div style="font-style: italic; opacity: 0.75;">💬 [WhatsApp message]</div>`;
             }
-            bubbleContent += `<div class="bubble-footer"><span>${escapeHtml(m.time_str || '')}</span>${checkIcon}</div>`;
+            bubbleContent += `<div class="bubble-footer"><span title="Message ID: ${escapeHtml(m.id || '')}">${escapeHtml(m.time_str || '')}</span>${checkIcon}</div>`;
 
             html += `<div class="${rowClass}"><div class="bubble ${isTpl ? 'bubble-template' : ''}">${bubbleContent}</div></div>`;
         });
@@ -1263,7 +1551,6 @@ header('Content-Security-Policy: frame-ancestors *');
         const text = input.value.trim();
         if (!text) return;
 
-        // If window is known to be closed, alert and offer template
         if (!isWindowOpen) {
             if (confirm('Meta 24-hour customer window is closed for this contact. Free-form text cannot be delivered.\n\nWould you like to open the Template Sender instead?')) {
                 openTemplateModal();
@@ -1285,7 +1572,6 @@ header('Content-Security-Policy: frame-ancestors *');
                 </div>
             </div>
         `;
-        // Remove empty state if present
         if (container.querySelector('.empty-chat')) {
             container.innerHTML = '';
         }
@@ -1300,10 +1586,14 @@ header('Content-Security-Policy: frame-ancestors *');
         formData.append('text', text);
         formData.append('member_id', currentMemberId);
 
+        window.keenDebugStore.logReq('send_direct_message', { phone: currentPhone, text: text, memberId: currentMemberId });
+
         fetch('placement_tab.php', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
                 btn.disabled = false;
+                window.keenDebugStore.logRes('send_direct_message', data);
+
                 if (data.success) {
                     loadChatHistory(true);
                 } else {
@@ -1324,6 +1614,7 @@ header('Content-Security-Policy: frame-ancestors *');
             })
             .catch(err => {
                 btn.disabled = false;
+                window.keenDebugStore.logErr('send_direct_message', err);
                 alert('Network error while communicating with DoubleTick server.');
             });
     }
@@ -1349,9 +1640,13 @@ header('Content-Security-Policy: frame-ancestors *');
         document.getElementById('crm-template-status').style.display = 'none';
 
         if (!crmTemplatesLoaded) {
-            fetch('placement_tab.php?action=get_templates&member_id=' + encodeURIComponent(currentMemberId))
+            const tplUrl = 'placement_tab.php?action=get_templates&member_id=' + encodeURIComponent(currentMemberId);
+            window.keenDebugStore.logReq('get_templates', { url: tplUrl, memberId: currentMemberId });
+
+            fetch(tplUrl)
                 .then(res => res.json())
                 .then(data => {
+                    window.keenDebugStore.logRes('get_templates', data);
                     if (data.success && data.templates && Array.isArray(data.templates)) {
                         const sel = document.getElementById('crm-template-select');
                         sel.innerHTML = '<option value="">-- Choose from approved templates --</option>';
@@ -1365,7 +1660,9 @@ header('Content-Security-Policy: frame-ancestors *');
                         crmTemplatesLoaded = true;
                     }
                 })
-                .catch(e => console.warn('Could not load templates', e));
+                .catch(e => {
+                    window.keenDebugStore.logErr('get_templates', e);
+                });
         }
     }
 
@@ -1414,11 +1711,23 @@ header('Content-Security-Policy: frame-ancestors *');
         formData.append('param3', p3);
         formData.append('member_id', currentMemberId);
 
+        window.keenDebugStore.logReq('send_template', {
+            phone: currentPhone,
+            templateName: tplName,
+            language: tplLang,
+            param1: p1,
+            param2: p2,
+            param3: p3,
+            memberId: currentMemberId
+        });
+
         fetch('placement_tab.php', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
                 btn.disabled = false;
                 btn.innerText = 'Send Template Message';
+                window.keenDebugStore.logRes('send_template', data);
+
                 if (data.success) {
                     statusEl.style.background = 'rgba(16, 185, 129, 0.2)';
                     statusEl.style.color = '#6ee7b7';
@@ -1436,6 +1745,7 @@ header('Content-Security-Policy: frame-ancestors *');
             .catch(err => {
                 btn.disabled = false;
                 btn.innerText = 'Send Template Message';
+                window.keenDebugStore.logErr('send_template', err);
                 statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
                 statusEl.style.color = '#fca5a5';
                 statusEl.innerText = '✕ Network error while sending template.';
@@ -1453,9 +1763,13 @@ header('Content-Security-Policy: frame-ancestors *');
         document.getElementById('ai-modal').style.display = 'block';
         document.getElementById('ai-content').innerHTML = '<em>Generating AI summary from WhatsApp history...</em>';
 
-        fetch('placement_tab.php?action=get_ai_summary&phone=' + encodeURIComponent(currentPhone) + '&member_id=' + encodeURIComponent(currentMemberId))
+        const aiUrl = 'placement_tab.php?action=get_ai_summary&phone=' + encodeURIComponent(currentPhone) + '&member_id=' + encodeURIComponent(currentMemberId);
+        window.keenDebugStore.logReq('get_ai_summary', { url: aiUrl, phone: currentPhone, memberId: currentMemberId });
+
+        fetch(aiUrl)
             .then(res => res.json())
             .then(data => {
+                window.keenDebugStore.logRes('get_ai_summary', data);
                 const el = document.getElementById('ai-content');
                 if (data.success && data.data) {
                     const d = data.data;
@@ -1473,6 +1787,7 @@ header('Content-Security-Policy: frame-ancestors *');
                 }
             })
             .catch(err => {
+                window.keenDebugStore.logErr('get_ai_summary', err);
                 document.getElementById('ai-content').innerText = 'Failed to fetch AI summary.';
             });
     }
@@ -1481,18 +1796,64 @@ header('Content-Security-Policy: frame-ancestors *');
         document.getElementById('ai-modal').style.display = 'none';
     }
 
+    // -------------------------------------------------------------
+    // Diagnostics & Debug Modal Functions
+    // -------------------------------------------------------------
+    function openDebugModal() {
+        const modal = document.getElementById('debug-modal');
+        const textarea = document.getElementById('debug-textarea');
+        const status = document.getElementById('debug-copy-status');
+        if (status) status.innerText = '';
+        if (textarea) textarea.value = window.keenDebugStore.exportJson();
+        if (modal) modal.style.display = 'block';
+    }
+
+    function closeDebugModal() {
+        const modal = document.getElementById('debug-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function copyDebugJsonToClipboard() {
+        const textarea = document.getElementById('debug-textarea');
+        const status = document.getElementById('debug-copy-status');
+        const content = textarea ? textarea.value : window.keenDebugStore.exportJson();
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(content).then(() => {
+                if (status) status.innerText = '✓ Copied to clipboard! You can paste it into the chat.';
+            }).catch(() => {
+                fallbackCopy(textarea, status);
+            });
+        } else {
+            fallbackCopy(textarea, status);
+        }
+    }
+
+    function fallbackCopy(textarea, status) {
+        if (!textarea) return;
+        textarea.select();
+        document.execCommand('copy');
+        if (status) status.innerText = '✓ Copied to clipboard! You can paste it into the chat.';
+    }
+
     function formatMessageText(val) {
         if (val === null || val === undefined) return '';
+        if (typeof val === 'string') {
+            const str = val.trim();
+            if (str === 'Array' || str === '[object Object]') return '';
+            return str;
+        }
         if (typeof val === 'object') {
             if (val.text && typeof val.text === 'string') return val.text;
-            if (val.text && typeof val.text === 'object') return val.text.body || val.text.text || JSON.stringify(val.text);
+            if (val.text && typeof val.text === 'object') return val.text.body || val.text.text || val.text.content || JSON.stringify(val.text);
             if (val.body && typeof val.body === 'string') return val.body;
             if (val.caption && typeof val.caption === 'string') return val.caption;
+            if (val.content && typeof val.content === 'string') return val.content;
+            if (val.message && typeof val.message === 'string') return val.message;
+            if (val.message && typeof val.message === 'object') return formatMessageText(val.message);
             return JSON.stringify(val);
         }
-        const str = String(val);
-        if (str === 'Array' || str === '[object Object]') return '';
-        return str;
+        return String(val);
     }
 
     function escapeHtml(str) {
