@@ -175,21 +175,51 @@ class BitrixClient
 
         $decoded = json_decode((string)$response, true);
         if ($httpCode >= 400 || !empty($decoded['error'])) {
-            // Check for expired token error
-            if (isset($decoded['error']) && in_array($decoded['error'], ['expired_token', 'invalid_token'])) {
+            $errCode = (string)($decoded['error'] ?? "HTTP {$httpCode}");
+            $errDesc = (string)($decoded['error_description'] ?? $decoded['error'] ?? 'Unknown error');
+
+            // 1. Check for expired token error
+            if (in_array($errCode, ['expired_token', 'invalid_token'])) {
                 if ($this->refreshToken()) {
                     return $this->call($method, $params);
                 }
             }
 
+            // 2. Treat idempotent errors (already binded / already installed) as success
+            if (stripos($errDesc, 'already binded') !== false || stripos($errDesc, 'already installed') !== false) {
+                Logger::info("Bitrix24 {$method} notice: already installed or binded", [
+                    'method' => $method,
+                    'notice' => $errDesc
+                ]);
+                return [
+                    'result' => true,
+                    'already_installed' => true,
+                    'notice' => $errDesc
+                ];
+            }
+
+            // 3. Gracefully handle insufficient_scope (e.g. missing bizproc permission in Bitrix24 Local App)
+            if ($errCode === 'insufficient_scope' || stripos($errDesc, 'higher privileges') !== false) {
+                Logger::warning("Bitrix24 {$method} requires higher privileges/scope. Check permissions in Bitrix24 Local App settings.", [
+                    'method' => $method,
+                    'code' => $httpCode,
+                    'error' => $errDesc
+                ]);
+                return [
+                    'error' => 'insufficient_scope',
+                    'error_description' => $errDesc,
+                    'result' => null
+                ];
+            }
+
             Logger::error("Bitrix24 API error on {$method}", [
                 'code' => $httpCode,
-                'error' => $decoded['error_description'] ?? $decoded['error'] ?? 'Unknown error',
+                'error' => $errDesc,
                 'params' => $params,
             ]);
             return [
-                'error' => $decoded['error'] ?? "HTTP {$httpCode}",
-                'error_description' => $decoded['error_description'] ?? 'API error',
+                'error' => $errCode,
+                'error_description' => $errDesc,
                 'result' => null
             ];
         }

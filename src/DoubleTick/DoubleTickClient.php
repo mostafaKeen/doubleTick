@@ -27,9 +27,12 @@ class DoubleTickClient
     {
         $payload = [
             'to' => $this->normalizePhone($to),
-            'text' => $text,
+            'content' => [
+                'text' => $text,
+            ],
         ];
-        $fromWaba = $from ?: $this->defaultWaba;
+
+        $fromWaba = $this->resolveFromWaba($from);
         if ($fromWaba) {
             $payload['from'] = $this->normalizePhone($fromWaba);
         }
@@ -38,27 +41,36 @@ class DoubleTickClient
     }
 
     /**
-     * Send approved WhatsApp template message (V2)
+     * Send approved WhatsApp template message
      */
     public function sendTemplateMessage(
         string $to,
         string $templateName,
         string $language,
-        array $templateData,
+        array $templateData = [],
         ?string $from = null
     ): array {
-        $payload = [
-            'to' => $this->normalizePhone($to),
+        $content = [
             'templateName' => $templateName,
             'language' => $language,
-            'templateData' => $templateData,
         ];
-        $fromWaba = $from ?: $this->defaultWaba;
-        if ($fromWaba) {
-            $payload['from'] = $this->normalizePhone($fromWaba);
+        if (!empty($templateData)) {
+            $content['templateData'] = $templateData;
         }
 
-        return $this->post('/v2/whatsapp/message/template', $payload);
+        $message = [
+            'to' => $this->normalizePhone($to),
+            'content' => $content,
+        ];
+
+        $fromWaba = $this->resolveFromWaba($from);
+        if ($fromWaba) {
+            $message['from'] = $this->normalizePhone($fromWaba);
+        }
+
+        return $this->post('/whatsapp/message/template', [
+            'messages' => [$message],
+        ]);
     }
 
     /**
@@ -77,18 +89,22 @@ class DoubleTickClient
             throw new Exception("Unsupported media type: {$mediaType}");
         }
 
-        $payload = [
-            'to' => $this->normalizePhone($to),
-            'url' => $mediaUrl,
+        $content = [
+            'mediaUrl' => $mediaUrl,
         ];
         if ($caption !== null && in_array($mediaType, ['image', 'video', 'document'])) {
-            $payload['caption'] = $caption;
+            $content['caption'] = $caption;
         }
         if ($filename !== null && $mediaType === 'document') {
-            $payload['filename'] = $filename;
+            $content['filename'] = $filename;
         }
 
-        $fromWaba = $from ?: $this->defaultWaba;
+        $payload = [
+            'to' => $this->normalizePhone($to),
+            'content' => $content,
+        ];
+
+        $fromWaba = $this->resolveFromWaba($from);
         if ($fromWaba) {
             $payload['from'] = $this->normalizePhone($fromWaba);
         }
@@ -107,32 +123,23 @@ class DoubleTickClient
         ?string $footer = null,
         ?string $from = null
     ): array {
+        $content = [
+            'body' => $bodyText,
+            'buttons' => $buttons,
+        ];
+        if ($header !== null && $header !== '') {
+            $content['header'] = $header;
+        }
+        if ($footer !== null && $footer !== '') {
+            $content['footer'] = $footer;
+        }
+
         $payload = [
             'to' => $this->normalizePhone($to),
-            'content' => [
-                'type' => 'BUTTON',
-                'body' => [
-                    'text' => $bodyText,
-                ],
-                'action' => [
-                    'buttons' => $buttons,
-                ]
-            ]
+            'content' => $content,
         ];
 
-        if ($header) {
-            $payload['content']['header'] = [
-                'type' => 'TEXT',
-                'text' => $header,
-            ];
-        }
-        if ($footer) {
-            $payload['content']['footer'] = [
-                'text' => $footer,
-            ];
-        }
-
-        $fromWaba = $from ?: $this->defaultWaba;
+        $fromWaba = $this->resolveFromWaba($from);
         if ($fromWaba) {
             $payload['from'] = $this->normalizePhone($fromWaba);
         }
@@ -141,14 +148,51 @@ class DoubleTickClient
     }
 
     /**
-     * Generate secure, tokenized Embed URL for frictionless CRM iframe integration
+     * Send interactive list message
+     */
+    public function sendInteractiveList(
+        string $to,
+        string $bodyText,
+        string $buttonText,
+        array $sections,
+        ?string $header = null,
+        ?string $footer = null,
+        ?string $from = null
+    ): array {
+        $content = [
+            'body' => $bodyText,
+            'button' => $buttonText,
+            'sections' => $sections,
+        ];
+        if ($header !== null && $header !== '') {
+            $content['header'] = $header;
+        }
+        if ($footer !== null && $footer !== '') {
+            $content['footer'] = $footer;
+        }
+
+        $payload = [
+            'to' => $this->normalizePhone($to),
+            'content' => $content,
+        ];
+
+        $fromWaba = $this->resolveFromWaba($from);
+        if ($fromWaba) {
+            $payload['from'] = $this->normalizePhone($fromWaba);
+        }
+
+        return $this->post('/whatsapp/message/interactive-list', $payload);
+    }
+
+    /**
+     * Generate secure, tokenized Embed URL for CRM iframe integration
      */
     public function getEmbedUrl(string $phone, ?string $wabaNumber = null, ?string $integrationId = null): string
     {
         $payload = [
             'phone' => $this->normalizePhone($phone),
         ];
-        $waba = $wabaNumber ?: $this->defaultWaba;
+        $waba = $this->resolveFromWaba($wabaNumber);
         if ($waba) {
             $payload['wabaNumber'] = $this->normalizePhone($waba);
         }
@@ -169,15 +213,17 @@ class DoubleTickClient
      */
     public function getChatAiSummary(string $phone, ?string $startDate = null, ?string $endDate = null): array
     {
+        $startDate = $startDate ?: date('Y-m-d', strtotime('-6 days'));
+        $endDate = $endDate ?: date('Y-m-d');
         $params = [
-            'customerPhoneNumber' => $this->normalizePhone($phone),
+            'customerNumber' => $this->normalizePhone($phone),
+            'startDate' => $startDate,
+            'endDate' => $endDate,
         ];
-        if ($this->defaultWaba) {
-            $params['wabaNumber'] = $this->normalizePhone($this->defaultWaba);
-        }
-        if ($startDate && $endDate) {
-            $params['startDate'] = $startDate;
-            $params['endDate'] = $endDate;
+
+        $waba = $this->resolveFromWaba($this->defaultWaba);
+        if ($waba) {
+            $params['wabaNumber'] = $this->normalizePhone($waba);
         }
 
         return $this->get('/channel/chat/ai-summary', $params);
@@ -192,6 +238,59 @@ class DoubleTickClient
     }
 
     /**
+     * Auto-detect the primary connected WABA phone number from user's DoubleTick account
+     */
+    public function getPrimaryWabaNumber(): ?string
+    {
+        try {
+            $res = $this->listChannels();
+            if (!empty($res['channels']) && is_array($res['channels'])) {
+                foreach ($res['channels'] as $ch) {
+                    if (!empty($ch['wabaNumber']) && ($ch['status'] ?? '') === 'CONNECTED') {
+                        return (string)$ch['wabaNumber'];
+                    }
+                }
+                if (!empty($res['channels'][0]['wabaNumber'])) {
+                    return (string)$res['channels'][0]['wabaNumber'];
+                }
+            }
+        } catch (\Throwable $e) {
+            Logger::error("Failed to detect primary WABA: " . $e->getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Resolve sender WABA, safely filtering out dummy/placeholder values
+     */
+    private function resolveFromWaba(?string $from): ?string
+    {
+        $candidate = $from ?: $this->defaultWaba;
+        if ($candidate) {
+            $candidate = trim($candidate);
+            // If candidate is the default dummy placeholder, attempt auto-detect
+            if ($candidate === '919999999999') {
+                $detected = $this->getPrimaryWabaNumber();
+                if ($detected) {
+                    $this->defaultWaba = $detected;
+                    return $detected;
+                }
+                return null;
+            }
+            return $candidate;
+        }
+
+        // If no candidate, try auto-detect
+        $detected = $this->getPrimaryWabaNumber();
+        if ($detected) {
+            $this->defaultWaba = $detected;
+            return $detected;
+        }
+
+        return null;
+    }
+
+    /**
      * Register a new webhook endpoint with DoubleTick
      */
     public function registerWebhook(string $webhookUrl, array $events, ?string $wabaNumber = null): array
@@ -200,7 +299,7 @@ class DoubleTickClient
             'url' => $webhookUrl,
             'events' => $events,
         ];
-        $waba = $wabaNumber ?: $this->defaultWaba;
+        $waba = $this->resolveFromWaba($wabaNumber);
         if ($waba) {
             $payload['wabaNumber'] = $this->normalizePhone($waba);
         }
@@ -217,11 +316,15 @@ class DoubleTickClient
     }
 
     /**
-     * Helper: normalize phone number (strip spaces, dashes, parentheses)
+     * Helper: normalize phone number (digits only, country code included)
      */
-    public function normalizePhone(string $phone): string
+    public function normalizePhone(string $phone, bool $withPlus = false): string
     {
-        return preg_replace('/[^0-9]/', '', $phone);
+        $clean = preg_replace('/[^0-9]/', '', $phone);
+        if ($withPlus && $clean !== '') {
+            return '+' . $clean;
+        }
+        return $clean;
     }
 
     /**

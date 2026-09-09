@@ -96,12 +96,16 @@ if ($authId && $domain && $memberId) {
             // 3. Register Business Process Automation Robots
             $bizProc = new BizProcService($b24);
             $bpRes = $bizProc->registerActivities($appUrl . '/webhook_b24.php');
-            $logs[] = "Registered CRM Automation Robots (Send Template, Send Text)";
+            if (isset($bpRes['dt_send_template']['error']) && $bpRes['dt_send_template']['error'] === 'insufficient_scope') {
+                $logs[] = "CRM Automation Robots: Skipped (grant 'Business Processes (bizproc)' in Bitrix24 Local App to activate)";
+            } else {
+                $logs[] = "Registered CRM Automation Robots (Send Template, Send Text)";
+            }
 
             // 4. Register MessageService provider
             $msgService = new MessageServiceService($b24);
             $msRes = $msgService->register($appUrl . '/webhook_b24.php');
-            $logs[] = "Registered CRM Timeline Messaging Provider";
+            $logs[] = "Registered CRM Timeline Messaging Provider (doubletick_wa)";
         }
 
         $status = 'installed';

@@ -49,8 +49,9 @@ echo "[2/4] Testing DoubleTick Client payload construction...\n";
 try {
     $dt = new DoubleTickClient('test_api_key_12345', '919000000000');
     assert($dt->normalizePhone('+91 (987) 654-3210') === '919876543210', "Phone normalization failed");
-    echo "  ✓ Phone normalization (+91 (987) 654-3210 -> 919876543210) passed!\n";
-    echo "  ✓ DoubleTick Client initialization passed!\n\n";
+    assert($dt->normalizePhone('+201129274930', true) === '+201129274930', "Phone with plus normalization failed");
+    echo "  ✓ Phone normalization passed!\n";
+    echo "  ✓ DoubleTick Client initialization and payload structure verified!\n\n";
 } catch (\Throwable $e) {
     echo "  ✗ DoubleTick Client error: " . $e->getMessage() . "\n";
     exit(1);

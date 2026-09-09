@@ -40,29 +40,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $waba = trim($_POST['dt_waba'] ?? '');
 
         if ($b24) {
+            // If WABA is blank or placeholder, auto-detect using API key
+            if ($key && (empty($waba) || $waba === '919999999999')) {
+                try {
+                    $dtTemp = new DoubleTickClient($key, null, $config['doubletick']['api_url']);
+                    $detected = $dtTemp->getPrimaryWabaNumber();
+                    if ($detected) {
+                        $waba = $detected;
+                    }
+                } catch (\Throwable $e) {
+                    // Ignore detection error
+                }
+            }
+
             $stmt = $db->prepare("UPDATE b24_portals SET dt_api_key = :k, dt_waba_number = :w WHERE id = :id");
             $stmt->execute(['k' => $key, 'w' => $waba, 'id' => $b24->getPortalId()]);
-            $notice = 'DoubleTick credentials updated successfully!';
+            $notice = 'DoubleTick credentials updated successfully!' . ($waba ? " Connected WABA: {$waba}" : '');
             $b24 = BitrixClient::getFirstActive();
             $portalData = $b24 ? $b24->getPortalData() : [];
         } else {
             $error = 'No active Bitrix24 portal installed yet. Please install the app in Bitrix24 first.';
         }
+    } elseif ($action === 'detect_waba') {
+        $apiKey = $b24 ? ($b24->getDoubleTickApiKey() ?: $config['doubletick']['api_key']) : $config['doubletick']['api_key'];
+        if (!$apiKey) {
+            $error = 'Please enter and save your DoubleTick Public API key first.';
+        } else {
+            try {
+                $dt = new DoubleTickClient($apiKey, null, $config['doubletick']['api_url']);
+                $channels = $dt->listChannels();
+                if (!empty($channels['channels']) && is_array($channels['channels'])) {
+                    $detected = $channels['channels'][0]['wabaNumber'] ?? null;
+                    $wabaName = $channels['channels'][0]['displayName'] ?? 'Default';
+                    if ($detected && $b24) {
+                        $db->prepare("UPDATE b24_portals SET dt_waba_number = :w WHERE id = :id")
+                           ->execute(['w' => $detected, 'id' => $b24->getPortalId()]);
+                        $b24 = BitrixClient::getFirstActive();
+                        $portalData = $b24 ? $b24->getPortalData() : [];
+                        $notice = "Successfully detected and connected channel: '{$wabaName}' ({$detected})";
+                    } else {
+                        $notice = "Found channels: " . json_encode($channels['channels']);
+                    }
+                } else {
+                    $error = "No connected WhatsApp channels found on your DoubleTick account.";
+                }
+            } catch (\Throwable $e) {
+                $error = "Channel detection error: " . $e->getMessage();
+            }
+        }
     } elseif ($action === 'send_test_message') {
         $to = trim($_POST['test_phone'] ?? '');
-        $text = trim($_POST['test_text'] ?? 'Test message from DoubleTick Bitrix24 App!');
+        $text = trim($_POST['test_text'] ?? 'Hello! This is a test message from Bitrix24 DoubleTick App.');
         $apiKey = $b24 ? ($b24->getDoubleTickApiKey() ?: $config['doubletick']['api_key']) : $config['doubletick']['api_key'];
         $waba = $b24 ? ($b24->getDoubleTickWaba() ?: $config['doubletick']['default_waba']) : $config['doubletick']['default_waba'];
 
         if (!$apiKey) {
-            $error = 'DoubleTick API key is required.';
+            $error = 'DoubleTick API key is required. Please save credentials first.';
         } elseif (!$to) {
             $error = 'Recipient phone number is required.';
         } else {
             try {
                 $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
-                $res = $dt->sendTextMessage($to, $text);
-                $notice = "Test message sent! DoubleTick Response ID: " . ($res['messageId'] ?? $res['dtMessageId'] ?? 'OK');
+                $res = $dt->sendTextMessage($to, $text, $waba);
+
+                if (!empty($res['error']) || (!empty($res['status_code']) && $res['status_code'] >= 400)) {
+                    $errDetail = is_array($res['error']) ? json_encode($res['error']) : (string)$res['error'];
+                    if (!empty($res['raw']['message'])) {
+                        $msgDetail = is_array($res['raw']['message']) ? implode(', ', $res['raw']['message']) : (string)$res['raw']['message'];
+                        $errDetail .= " ({$msgDetail})";
+                    }
+                    $error = "DoubleTick Error: {$errDetail}";
+                } else {
+                    $msgId = $res['messageId'] ?? $res['dtMessageId'] ?? 'OK';
+                    $notice = "WhatsApp message sent successfully! DoubleTick Message ID: {$msgId}";
+                }
             } catch (\Throwable $e) {
                 $error = "Failed to send message: " . $e->getMessage();
             }
@@ -232,7 +283,15 @@ $recentWebhooks = $db->query("SELECT * FROM webhook_logs ORDER BY id DESC LIMIT 
                            value="<?= htmlspecialchars($portalData['dt_waba_number'] ?? '') ?>" 
                            placeholder="e.g. 919876543210 (without +)">
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Save Credentials</button>
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Save Credentials</button>
+                </div>
+            </form>
+            <form method="POST" style="margin-top: 10px;">
+                <input type="hidden" name="action" value="detect_waba">
+                <button type="submit" class="btn" style="width: 100%; background: #334155; color: #fff;">
+                    🔍 Auto-Detect Connected WABA Number
+                </button>
             </form>
         </div>
 
