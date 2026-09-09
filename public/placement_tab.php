@@ -244,13 +244,28 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
             }
 
             // Extract content
-            $content = extractDtMessageContent($m['message'] ?? $m);
+            $extractInput = $m['message'] ?? $m;
+            $content = extractDtMessageContent($extractInput);
             $text = $content['text'];
             $mediaUrl = $content['media_url'] ?: ($m['mediaUrl'] ?? null);
+
+            // Debug: capture extraction input/output for diagnostics
+            $extractionDebug = [
+                'input_type' => gettype($extractInput),
+                'input_keys' => is_array($extractInput) ? array_keys($extractInput) : null,
+                'input_text_field' => is_array($extractInput) ? (isset($extractInput['text']) ? (is_array($extractInput['text']) ? 'ARRAY:' . json_encode($extractInput['text']) : 'STRING:' . substr((string)$extractInput['text'], 0, 200)) : 'NOT_SET') : null,
+                'input_body_field' => is_array($extractInput) ? (isset($extractInput['body']) ? (is_array($extractInput['body']) ? 'ARRAY:' . json_encode($extractInput['body']) : 'STRING:' . substr((string)$extractInput['body'], 0, 200)) : 'NOT_SET') : null,
+                'extract_result_text' => $content['text'],
+                'extract_result_media' => $content['media_url'],
+                'has_message_key' => isset($m['message']),
+                'message_key_type' => isset($m['message']) ? gettype($m['message']) : null,
+                'raw_message_snippet' => json_encode($m, JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR),
+            ];
 
             // If text is still empty or "Array", check root fields of $m safely
             if ($text === '' || $text === 'Array' || $text === '[object Object]') {
                 $fallback = extractDtMessageContent($m);
+                $extractionDebug['fallback_text'] = $fallback['text'];
                 if ($fallback['text'] !== '' && $fallback['text'] !== 'Array') {
                     $text = $fallback['text'];
                 }
@@ -260,6 +275,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
             if ($text === 'Array' || $text === '[object Object]') {
                 $text = '';
             }
+            $extractionDebug['final_text'] = $text;
 
             // Timestamp: DoubleTick messageTime is epoch milliseconds (e.g. 1737612046032)
             $rawTs = $m['messageTime'] ?? $m['timestamp'] ?? null;
@@ -301,6 +317,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
                 'status' => $status,
                 'type' => $isTemplate ? 'template' : ($mediaUrl ? 'media' : 'text'),
                 'raw_message' => $m,
+                '_extraction_debug' => $extractionDebug,
             ];
         }
     } catch (\Throwable $e) {
@@ -1320,6 +1337,13 @@ header('Content-Security-Policy: frame-ancestors *');
             }
             if (data && data.raw_dt_response) {
                 console.log('Raw DoubleTick API response:', data.raw_dt_response);
+            }
+            if (data && data.messages && action.includes('chat_history')) {
+                data.messages.forEach(function(msg, idx) {
+                    if (msg._extraction_debug) {
+                        console.log('%c[MSG #' + idx + '] Extraction Debug:', 'color: #fbbf24; font-weight: bold;', msg._extraction_debug);
+                    }
+                });
             }
             if (data && data.error) {
                 console.warn('Error detail:', data.error);
