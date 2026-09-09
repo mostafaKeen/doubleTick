@@ -1,0 +1,3707 @@
+{
+  "source": "https://docs.doubletick.io",
+  "total_guides": 51,
+  "total_references": 110,
+  "total_endpoints_parsed": 93,
+  "total_webhooks_parsed": 21,
+  "endpoints": [
+    {
+      "title": "Send Whatsapp Template Message",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-template.md",
+      "method": "POST",
+      "path": "/whatsapp/message/template",
+      "summary": "Send Whatsapp Template Message",
+      "description": "Send Whatsapp Template Message",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappTemplateMessagesDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "List Channel Details",
+      "url": "https://docs.doubletick.io/reference/list-channel-details.md",
+      "method": "GET",
+      "path": "/organization/channel/profile",
+      "summary": "List Channel Details",
+      "description": "List the connected WhatsApp channels assigned to the caller.",
+      "tags": [
+        "Channel"
+      ],
+      "parameters": [
+        {
+          "name": "wabaNumber",
+          "in": "query",
+          "required": false,
+          "description": "Filter to specific channels by WhatsApp number; repeat for several (`?wabaNumber=17042493212&wabaNumber=919999999999`, max 50).",
+          "schema": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string"
+            }
+          },
+          "style": "form",
+          "explode": true,
+          "example": [
+            "17042493212"
+          ]
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "401",
+        "403"
+      ]
+    },
+    {
+      "title": "Update Channel Details",
+      "url": "https://docs.doubletick.io/reference/update-channel-details.md",
+      "method": "PATCH",
+      "path": "/organization/channel/profile",
+      "summary": "Update Channel Details",
+      "description": "Update the business profile of a single WhatsApp channel (WABA). Send fields as `application/json`, or as `multipart/form-data` to upload a logo. At least one updatable field is required. Supply the logo as either the binary `logo` (multipart) or `logoUrl` (a public https image URL) \u2014 not both. Rate limits: 60 requests/hour per organization and at most 1 successful update per channel per hour.",
+      "tags": [
+        "Channel"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UpdateChannelDetailsDto"
+            }
+          },
+          "multipart/form-data": {
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/UpdateChannelDetailsDto"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "logo": {
+                      "type": "string",
+                      "format": "binary",
+                      "description": "Logo image (JPG or PNG, square, max 640x640px, max 800KB). Alternative to `logoUrl`."
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "429"
+      ]
+    },
+    {
+      "title": "Send Whatsapp Video Message",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-video.md",
+      "method": "POST",
+      "path": "/whatsapp/message/video",
+      "summary": "Send Whatsapp Video Message",
+      "description": "Send Whatsapp Video Message",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappVideoMessageDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Send Whatsapp Text Message",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-text.md",
+      "method": "POST",
+      "path": "/whatsapp/message/text",
+      "summary": "Send Whatsapp Text Message",
+      "description": "Send Whatsapp Text Message",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappTextMessageDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Send Whatsapp Template Message (V2)",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-template-v2.md",
+      "method": "POST",
+      "path": "/v2/whatsapp/message/template",
+      "summary": "Send Whatsapp Template Message (V2)",
+      "description": "Send Whatsapp template messages. Requires to, from (WABA number), templateName, language, templateData. Body placeholders must be key-value pairs (objects), not strings. e.g. [{ \"name\": \"John\" }].",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappTemplateMessagesDtoV2"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Send Whatsapp Audio Message",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-audio.md",
+      "method": "POST",
+      "path": "/whatsapp/message/audio",
+      "summary": "Send Whatsapp Audio Message",
+      "description": "Send Whatsapp Audio Message",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappAudioMessageDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Get Message Status",
+      "url": "https://docs.doubletick.io/reference/get-message-status.md",
+      "method": "GET",
+      "path": "/whatsapp/message/status",
+      "summary": "Get Message Status",
+      "description": "Get the current delivery status of a message using the `messageId` returned by the send message / send template APIs.\n\nRate limited to 1 request per second, per organisation.",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [
+        {
+          "in": "query",
+          "name": "messageId",
+          "required": true,
+          "description": "The `messageId` returned by the send message / send template APIs.",
+          "schema": {
+            "type": "string",
+            "format": "uuid",
+            "example": "c2973bf3-5f7a-4f30-a927-57cfb0c66ad3"
+          }
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "404",
+        "429"
+      ]
+    },
+    {
+      "title": "Send Whatsapp Image Message",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-image.md",
+      "method": "POST",
+      "path": "/whatsapp/message/image",
+      "summary": "Send Whatsapp Image Message",
+      "description": "Send Whatsapp Image Message",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappImageMessageDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Send Whatsapp Interactive List Message",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-interactive-list.md",
+      "method": "POST",
+      "path": "/whatsapp/message/interactive-list",
+      "summary": "Send Whatsapp Interactive List Message",
+      "description": "Send Whatsapp Interactive List Message",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappInteractiveListMessageDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Send Whatsapp Order (Payment) Message",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-order.md",
+      "method": "POST",
+      "path": "/whatsapp/message/order",
+      "summary": "Send Whatsapp Order (Payment) Message",
+      "description": "Send Whatsapp Order (Payment) Message",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappOrderMessageDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Send Whatsapp Interactive Media Carousel Message",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-interactive-media-carousel.md",
+      "method": "POST",
+      "path": "/whatsapp/message/interactive/media-carousel",
+      "summary": "Send Whatsapp Interactive Media Carousel Message",
+      "description": "Send a WhatsApp interactive media carousel message \u2014 2-10 cards, each with an image or video header, optional body text, and either a single URL button (cta_url) or one or more quick-reply buttons. All cards must use the same button type and same number of buttons.",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappInteractiveMediaCarouselMessageDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Send Whatsapp Interactive Media Message",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-interactive-media.md",
+      "method": "POST",
+      "path": "/whatsapp/message/interactive/media",
+      "summary": "Send Whatsapp Interactive Media Message",
+      "description": "Send Whatsapp Interactive Button Message with media header (image, video or document).",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappInteractiveMediaMessageDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Send Whatsapp Order Status Message",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-order-status.md",
+      "method": "POST",
+      "path": "/whatsapp/message/order/status",
+      "summary": "Send Whatsapp Order Status Message",
+      "description": "Send Whatsapp Order Status Message",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappOrderStatusMessageDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Send Whatsapp Document Message",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-document.md",
+      "method": "POST",
+      "path": "/whatsapp/message/document",
+      "summary": "Send Whatsapp Document Message",
+      "description": "Send Whatsapp Document Message",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappDocumentMessageDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Send Whatsapp Interactive Button Message",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-interactive.md",
+      "method": "POST",
+      "path": "/whatsapp/message/interactive",
+      "summary": "Send Whatsapp Interactive Button Message",
+      "description": "Send Whatsapp Interactive Button Message",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappInteractiveMessageDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Send Whatsapp Location Message",
+      "url": "https://docs.doubletick.io/reference/outgoing-messages-whatsapp-location.md",
+      "method": "POST",
+      "path": "/whatsapp/message/location",
+      "summary": "Send Whatsapp Location Message",
+      "description": "Send Whatsapp Location Message",
+      "tags": [
+        "Outgoing Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsappLocationMessageDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Delete groups",
+      "url": "https://docs.doubletick.io/reference/delete-groups.md",
+      "method": "DELETE",
+      "path": "/groups",
+      "summary": "Delete groups",
+      "description": "Deletes multiple groups",
+      "tags": [
+        "Broadcast Groups"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeleteGroupRequestDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Export Chats For a Customer For Given WabaNumber",
+      "url": "https://docs.doubletick.io/reference/export-chats-to-excel.md",
+      "method": "POST",
+      "path": "/export-chats",
+      "summary": "Export Chats For a Customer For Given WabaNumber",
+      "description": "Export Chats For a WabaNumber",
+      "tags": [
+        "Chat Messages"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ExportChatsDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Generate CCAvenue Payment Link",
+      "url": "https://docs.doubletick.io/reference/generate-ccavenue-payment-link.md",
+      "method": "POST",
+      "path": "/ccavenue/payment-link",
+      "summary": "Generate CCAvenue Payment Link",
+      "description": "Generates a CCAvenue payment link for a UPI payment configuration, with optional pre-filling of the customer's billing details. Returns the payment link and its reference ID \u2014 include both in the order details message so the payment can be tracked.",
+      "tags": [
+        "Payments"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GenerateCCAvenuePaymentLinkDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Fetch chat list (inbox)",
+      "url": "https://docs.doubletick.io/reference/get-chat-list.md",
+      "method": "GET",
+      "path": "/chats",
+      "summary": "Fetch chat list (inbox)",
+      "description": "Retrieve the chat list (inbox) for the authenticated org/user, with optional filtering and cursor-based pagination.",
+      "tags": [
+        "Chats"
+      ],
+      "parameters": [
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "description": "Number of chats to return. Min 1, max 100. Defaults to 10.",
+          "schema": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100,
+            "example": 10
+          }
+        },
+        {
+          "name": "status",
+          "in": "query",
+          "required": false,
+          "description": "Filter chats by status.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "all",
+              "unread",
+              "unresolved",
+              "done",
+              "waiting_for_response",
+              "open",
+              "open_cart"
+            ],
+            "example": "unresolved"
+          }
+        },
+        {
+          "name": "tags",
+          "in": "query",
+          "required": false,
+          "description": "Comma-separated tag names to filter chats.",
+          "schema": {
+            "type": "string",
+            "example": "vip,lead"
+          }
+        },
+        {
+          "name": "assignedUserPhone",
+          "in": "query",
+          "required": false,
+          "description": "Phone number of the assigned agent (with or without leading +). Use the literal string 'null' to fetch unassigned chats.",
+          "schema": {
+            "type": "string",
+            "example": "+919999999999"
+          }
+        },
+        {
+          "name": "wabaNumbers",
+          "in": "query",
+          "required": false,
+          "description": "Comma-separated WhatsApp WABA phone numbers to filter chats. Only applies to WhatsApp chats. Use instagramHandles to filter Instagram chats.",
+          "schema": {
+            "type": "string",
+            "example": "11234567890,19876543210"
+          }
+        },
+        {
+          "name": "instagramHandles",
+          "in": "query",
+          "required": false,
+          "description": "Comma-separated Instagram account handles to filter chats. Accepts handles with or without leading @. Only applies to Instagram chats. Use wabaNumbers to filter WhatsApp chats.",
+          "schema": {
+            "type": "string",
+            "example": "myaccount,otheraccount"
+          }
+        },
+        {
+          "name": "nextChatId",
+          "in": "query",
+          "required": false,
+          "description": "Pagination cursor. Pass the value of paginationOptions.nextChatId from the previous response.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "nextChatTimestamp",
+          "in": "query",
+          "required": false,
+          "description": "Pagination cursor. Pass the value of paginationOptions.nextChatTimestamp from the previous response (epoch milliseconds).",
+          "schema": {
+            "type": "number",
+            "example": 1711929600000
+          }
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Get chat messages for a customer of WABA number",
+      "url": "https://docs.doubletick.io/reference/get-chat-messages.md",
+      "method": "GET",
+      "path": "/chat-messages",
+      "summary": "Get chat messages for a customer of WABA number",
+      "description": "Retrieve chat messages sent by the specified WhatsApp Business Account (WABA) number, with optional date filtering.",
+      "tags": [
+        "Chat Messages"
+      ],
+      "parameters": [
+        {
+          "name": "wabaNumber",
+          "in": "query",
+          "required": true,
+          "description": "The WhatsApp Business Account (WABA) number",
+          "schema": {
+            "type": "string",
+            "example": "11234567890"
+          }
+        },
+        {
+          "name": "customerNumber",
+          "in": "query",
+          "required": true,
+          "description": "Customer's phone number",
+          "schema": {
+            "type": "string",
+            "example": "911234567890"
+          }
+        },
+        {
+          "name": "startDate",
+          "in": "query",
+          "required": false,
+          "description": "The start date for the chat messages (DD-MM-YYYY)",
+          "schema": {
+            "type": "string",
+            "example": "01-01-2024"
+          }
+        },
+        {
+          "name": "endDate",
+          "in": "query",
+          "required": false,
+          "description": "The end date for the chat messages (DD-MM-YYYY)",
+          "schema": {
+            "type": "string",
+            "example": "31-12-2024"
+          }
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Send Template Whatsapp Message to Broadcast Group",
+      "url": "https://docs.doubletick.io/reference/send-broadcast-message.md",
+      "method": "POST",
+      "path": "/whatsapp/message/broadcast",
+      "summary": "Send Template Whatsapp Message to Broadcast Group",
+      "description": "Send a template WhatsApp message to a broadcast group. When using placeholders in your message, please follow the format outlined below:\n\n- {{Name}}: Used to include the name of the customer.\n- {{Phone Number}}: Used to include the phone number of the customer.\n- {{<Custom Field Name>}}: Used to include custom fields. This will only function correctly if the custom field has been set for all customers within the broadcast group.",
+      "tags": [
+        "Broadcast Groups"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SendWhatsAppBroadcastRequestDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Get paginated groups",
+      "url": "https://docs.doubletick.io/reference/get-paginated-groups-v2.md",
+      "method": "GET",
+      "path": "/groups",
+      "summary": "Get paginated groups",
+      "description": "Returns a list of paginated groups based on search criteria and pagination parameters",
+      "tags": [
+        "Broadcast Groups"
+      ],
+      "parameters": [
+        {
+          "in": "query",
+          "name": "searchQuery",
+          "schema": {
+            "type": "string",
+            "description": "Search query",
+            "example": "group name"
+          },
+          "description": "The search query to filter groups"
+        },
+        {
+          "in": "query",
+          "name": "orderBy",
+          "schema": {
+            "type": "string",
+            "description": "Order by",
+            "example": "NAME",
+            "enum": [
+              "NAME",
+              "DATE_CREATED"
+            ]
+          },
+          "description": "The field to order the groups by"
+        },
+        {
+          "in": "query",
+          "name": "format",
+          "schema": {
+            "type": "string",
+            "description": "Order format",
+            "example": "ASCENDING",
+            "enum": [
+              "ASCENDING",
+              "DESCENDING",
+              "ascending",
+              "descending"
+            ]
+          },
+          "description": "The order format to apply to the groups"
+        },
+        {
+          "in": "query",
+          "name": "afterGroupId",
+          "schema": {
+            "type": "string",
+            "description": "Group ID after which the groups are to be fetched",
+            "example": "group_id"
+          },
+          "description": "The group ID to fetch the groups after"
+        },
+        {
+          "in": "query",
+          "name": "afterGroupName",
+          "schema": {
+            "type": "string",
+            "description": "Group name after which the groups are to be fetched",
+            "example": "group_name"
+          },
+          "description": "The group name to fetch the groups after"
+        },
+        {
+          "in": "query",
+          "name": "afterDateCreated",
+          "schema": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Group date created after which the groups are to be fetched",
+            "example": "2020-01-01T00:00:00.000Z"
+          },
+          "description": "The group creation date to fetch the groups after"
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Create a new group",
+      "url": "https://docs.doubletick.io/reference/create-group.md",
+      "method": "POST",
+      "path": "/groups",
+      "summary": "Create a new group",
+      "description": "Create a new group",
+      "tags": [
+        "Broadcast Groups"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CreateGroupDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Remove members from a group",
+      "url": "https://docs.doubletick.io/reference/remove-members-from-group.md",
+      "method": "DELETE",
+      "path": "/groups/remove-members",
+      "summary": "Remove members from a group",
+      "description": "Removes members from an existing static group",
+      "tags": [
+        "Broadcast Groups"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RemoveMembersFromGroupRequestDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Delete Template",
+      "url": "https://docs.doubletick.io/reference/delete-template.md",
+      "method": "DELETE",
+      "path": "/template",
+      "summary": "Delete Template",
+      "description": "Delete Template",
+      "tags": [
+        "Template"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeleteTemplateDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Create New Template",
+      "url": "https://docs.doubletick.io/reference/create-template.md",
+      "method": "POST",
+      "path": "/template",
+      "summary": "Create New Template",
+      "description": "Create New Template",
+      "tags": [
+        "Template"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CreateTemplateViaPublicAPIDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Add members to a group",
+      "url": "https://docs.doubletick.io/reference/add-members-to-group.md",
+      "method": "POST",
+      "path": "/groups/add-members",
+      "summary": "Add members to a group",
+      "description": "Adds members to an existing group",
+      "tags": [
+        "Broadcast Groups"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AddGroupMembersRequestDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Edit Template",
+      "url": "https://docs.doubletick.io/reference/edit-template.md",
+      "method": "PATCH",
+      "path": "/template/{templateId}",
+      "summary": "Edit Template",
+      "description": "Edit Template",
+      "tags": [
+        "Template"
+      ],
+      "parameters": [
+        {
+          "in": "path",
+          "name": "templateId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "The template ID"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/EditTemplateViaPublicAPIDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Get Templates",
+      "url": "https://docs.doubletick.io/reference/get-templates.md",
+      "method": "GET",
+      "path": "/v2/templates",
+      "summary": "Get Templates",
+      "description": "Get Templates",
+      "tags": [
+        "Template"
+      ],
+      "parameters": [
+        {
+          "in": "query",
+          "name": "status",
+          "schema": {
+            "type": "string",
+            "description": "Template status",
+            "example": "PENDING",
+            "enum": [
+              "APPROVED",
+              "REJECTED",
+              "PENDING",
+              "PAUSED",
+              "ALL"
+            ]
+          },
+          "description": "Template status",
+          "required": false
+        },
+        {
+          "in": "query",
+          "name": "name",
+          "schema": {
+            "type": "string",
+            "description": "Template name",
+            "example": "test_template"
+          },
+          "description": "Template name",
+          "required": false
+        },
+        {
+          "in": "query",
+          "name": "language",
+          "schema": {
+            "type": "string",
+            "description": "Template language",
+            "example": "en",
+            "enum": [
+              "af",
+              "sq",
+              "ar",
+              "az",
+              "bn",
+              "bg",
+              "ca",
+              "zh_CN",
+              "zh_HK",
+              "zh_TW",
+              "hr",
+              "cs",
+              "da",
+              "nl",
+              "en",
+              "en_GB",
+              "en_US",
+              "et",
+              "fil",
+              "fi",
+              "fr",
+              "ka",
+              "de",
+              "el",
+              "gu",
+              "ha",
+              "he",
+              "hi",
+              "hu",
+              "id",
+              "ga",
+              "it",
+              "ja",
+              "kn",
+              "kk",
+              "rw_RW",
+              "ko",
+              "ky_KG",
+              "lo",
+              "lv",
+              "lt",
+              "mk",
+              "ms",
+              "ml",
+              "mr",
+              "nb",
+              "fa",
+              "pl",
+              "pt_BR",
+              "pt_PT",
+              "pa",
+              "ro",
+              "ru",
+              "sr",
+              "sk",
+              "sl",
+              "es",
+              "es_AR",
+              "es_ES",
+              "es_MX",
+              "sw",
+              "sv",
+              "ta",
+              "te",
+              "th",
+              "tr",
+              "uk",
+              "ur",
+              "uz"
+            ]
+          },
+          "description": "Template language",
+          "required": false
+        },
+        {
+          "in": "query",
+          "name": "category",
+          "schema": {
+            "type": "string",
+            "description": "Template category",
+            "example": "MARKETING",
+            "enum": [
+              "MARKETING",
+              "UTILITY"
+            ]
+          },
+          "description": "Template category",
+          "required": false
+        },
+        {
+          "in": "query",
+          "name": "wabaPhoneNumbers",
+          "schema": {
+            "type": "string",
+            "description": "Comma separated waba phone numbers",
+            "example": "919999999999,918888888888"
+          },
+          "description": "Waba Phone Numbers",
+          "required": false
+        },
+        {
+          "in": "query",
+          "name": "allWabaPhoneNumbers",
+          "schema": {
+            "type": "boolean",
+            "description": "If set to true, returns templates for all Waba Phone Numbers",
+            "example": true
+          },
+          "description": "If set to true, returns templates for all Waba Phone Numbers",
+          "required": false
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Assign Custom Fields and/or Tags to Customer",
+      "url": "https://docs.doubletick.io/reference/customer-assign-tags-custom-fields.md",
+      "method": "POST",
+      "path": "/customer/assign-tags-custom-fields",
+      "summary": "Assign Custom Fields and/or Tags to Customer",
+      "description": "Assign Custom Fields and/or Tags to Customer",
+      "tags": [
+        "Customer"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AssignCustomFieldsChatTagsToCustomerDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Remove Custom Fields and/or Tags from Customer",
+      "url": "https://docs.doubletick.io/reference/customer-remove-tags-custom-fields.md",
+      "method": "POST",
+      "path": "/customer/remove-tags-custom-fields",
+      "summary": "Remove Custom Fields and/or Tags from Customer",
+      "description": "Remove Custom Fields and/or Tags from Customer",
+      "tags": [
+        "Customer"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RemoveTagsAndCustomFieldsFromCustomerDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Delete Customer",
+      "url": "https://docs.doubletick.io/reference/delete-customer.md",
+      "method": "DELETE",
+      "path": "/customer",
+      "summary": "Delete Customer",
+      "description": "Delete customers by phone number (max 10 per request). Deletion is processed asynchronously \u2014 a 201 response means the request was accepted and queued, not that deletion has completed.",
+      "tags": [
+        "Customer"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeleteCustomerDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "403",
+        "404"
+      ]
+    },
+    {
+      "title": "Unblock a customer",
+      "url": "https://docs.doubletick.io/reference/unblock-unblock-customer.md",
+      "method": "POST",
+      "path": "/customer/unblock",
+      "summary": "Unblock a customer ",
+      "description": "Unblock customer using phone number ",
+      "tags": [
+        "Customer"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UnblockCustomerDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Get customer details",
+      "url": "https://docs.doubletick.io/reference/get-customer-details.md",
+      "method": "GET",
+      "path": "/customer/details",
+      "summary": "Get customer details ",
+      "description": "Get details of customer along with custom fields ",
+      "tags": [
+        "Customer"
+      ],
+      "parameters": [
+        {
+          "name": "phoneNumber",
+          "in": "query",
+          "schema": {
+            "type": "string"
+          },
+          "example": "917838849957",
+          "required": false
+        },
+        {
+          "name": "wabaNumber",
+          "in": "query",
+          "schema": {
+            "type": "string"
+          },
+          "description": "WhatsApp Business Account number. When provided, the response will include tags associated with the customer for this WABA.",
+          "example": "917838849957",
+          "required": false
+        },
+        {
+          "name": "customerId",
+          "in": "query",
+          "schema": {
+            "type": "string"
+          },
+          "example": "customer_xxxxxxxxxx",
+          "required": false
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Assign team member to customer",
+      "url": "https://docs.doubletick.io/reference/assign-team-member-to-customer.md",
+      "method": "POST",
+      "path": "/customer/assign",
+      "summary": "Assign team member to customer",
+      "description": " Assign team member to customer ",
+      "tags": [
+        "Customer"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AssignTeamMemberCustomerDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "403",
+        "404",
+        "422"
+      ]
+    },
+    {
+      "title": "Get chat window status",
+      "url": "https://docs.doubletick.io/reference/get-chat-window-status.md",
+      "method": "GET",
+      "path": "/chat/status",
+      "summary": "Get chat window status",
+      "description": "Get chat window status for a customer with given WABA number",
+      "tags": [
+        "Customer"
+      ],
+      "parameters": [
+        {
+          "name": "customerPhoneNumber",
+          "in": "query",
+          "required": true,
+          "description": "The customer's phone number",
+          "schema": {
+            "type": "string",
+            "example": "+919999999999"
+          }
+        },
+        {
+          "name": "wabaNumber",
+          "in": "query",
+          "required": true,
+          "description": "The WhatsApp Business Account (WABA) number",
+          "schema": {
+            "type": "string",
+            "example": "+919999999998"
+          }
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Assign Custom Fields and/or Tags to WA Group",
+      "url": "https://docs.doubletick.io/reference/wa-group-assign-tags-custom-fields.md",
+      "method": "POST",
+      "path": "/wa-group/assign-tags-custom-fields",
+      "summary": "Assign Custom Fields and/or Tags to WA Group",
+      "description": "Assign chat-level custom fields and/or tags to a WhatsApp Group identified by its groupId.",
+      "tags": [
+        "WA Group"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AssignCustomFieldsChatTagsToWaGroupDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Block a customer",
+      "url": "https://docs.doubletick.io/reference/block-unblock-customer.md",
+      "method": "POST",
+      "path": "/customer/block",
+      "summary": "Block a customer ",
+      "description": "Block customer using phone number ",
+      "tags": [
+        "Customer"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/BlockCustomerDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Check reverted on time",
+      "url": "https://docs.doubletick.io/reference/check-reverted-on-time.md",
+      "method": "GET",
+      "path": "/customer/check-reverted-on-time",
+      "summary": "Check reverted on time",
+      "description": "Check reverted on time",
+      "tags": [
+        "Customer"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CheckRevertedOnTimeDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Remove Custom Fields and/or Tags from WA Group",
+      "url": "https://docs.doubletick.io/reference/wa-group-remove-tags-custom-fields.md",
+      "method": "POST",
+      "path": "/wa-group/remove-tags-custom-fields",
+      "summary": "Remove Custom Fields and/or Tags from WA Group",
+      "description": "Remove chat-level custom fields and/or tags from a WhatsApp Group identified by its groupId.",
+      "tags": [
+        "WA Group"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RemoveTagsAndCustomFieldsFromWaGroupDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Unassign team member from a chat",
+      "url": "https://docs.doubletick.io/reference/unassign-team-member-from-chat.md",
+      "method": "POST",
+      "path": "/team-member/unassign",
+      "summary": "Unassign team member from a chat",
+      "description": "Unassign a team member from an individual customer chat or a WA group chat. Provide either customerPhoneNumber (for individual chats) or groupId. Exactly one of the two must be supplied.",
+      "tags": [
+        "Team Member"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UnassignTeamMemberChatDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "422"
+      ]
+    },
+    {
+      "title": "Assign team member to chat",
+      "url": "https://docs.doubletick.io/reference/assign-team-member-to-chat.md",
+      "method": "POST",
+      "path": "/team-member/assign",
+      "summary": "Assign team member to chat",
+      "description": "Assign a team member to an individual customer chat or a WA group chat. Provide either customerPhoneNumber (for individual chats) or groupId. Exactly one of the two must be supplied.",
+      "tags": [
+        "Team Member"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AssignTeamMemberChatDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "422"
+      ]
+    },
+    {
+      "title": "Remove team member",
+      "url": "https://docs.doubletick.io/reference/remove-team-member.md",
+      "method": "DELETE",
+      "path": "/team-member",
+      "summary": "Remove team member",
+      "description": "Remove team member from team",
+      "tags": [
+        "Teams"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RemoveTeamMemberDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "422"
+      ]
+    },
+    {
+      "title": "Get wallet balance",
+      "url": "https://docs.doubletick.io/reference/get-wallet-balanace-for-org.md",
+      "method": "GET",
+      "path": "/wallet/balance",
+      "summary": "Get wallet balance",
+      "description": "Get wallet balance for Org",
+      "tags": [
+        "Wallet"
+      ],
+      "parameters": [],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "401"
+      ]
+    },
+    {
+      "title": "Logout a team member",
+      "url": "https://docs.doubletick.io/reference/logout-team-member.md",
+      "method": "POST",
+      "path": "/team-member/logout",
+      "summary": "Logout a team member",
+      "description": "Logout a team member",
+      "tags": [
+        "Team Member"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/LogoutTeamMemberDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "422"
+      ]
+    },
+    {
+      "title": "Get Team",
+      "url": "https://docs.doubletick.io/reference/get-team.md",
+      "method": "GET",
+      "path": "/team",
+      "summary": "Get Team",
+      "description": "Get Team members with their Reporting Managers",
+      "tags": [
+        "Teams"
+      ],
+      "parameters": [],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "401"
+      ]
+    },
+    {
+      "title": "Change reporting manager",
+      "url": "https://docs.doubletick.io/reference/change-reporting-manager.md",
+      "method": "PATCH",
+      "path": "/team-member/reporting-manager",
+      "summary": "Change reporting manager",
+      "description": "Change reporting manager of the user",
+      "tags": [
+        "Teams"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ChangeReportingManagerDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "422"
+      ]
+    },
+    {
+      "title": "Change Team Member Role",
+      "url": "https://docs.doubletick.io/reference/change-team-member-role.md",
+      "method": "PATCH",
+      "path": "/team-member/role",
+      "summary": "Change Team Member Role",
+      "description": "Change a team member's organization role and/or their role on one or more WhatsApp Business Accounts (WABA). At least one of orgRole or wabaRoles must be provided.",
+      "tags": [
+        "Teams"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ChangeTeamMemberRoleDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "422"
+      ]
+    },
+    {
+      "title": "Get Team Member Details",
+      "url": "https://docs.doubletick.io/reference/get-team-member-details.md",
+      "method": "GET",
+      "path": "/team/member",
+      "summary": "Get Team Member Details",
+      "description": "Get detailed information about a specific team member including their role, reporting managers, and organization details",
+      "tags": [
+        "Teams"
+      ],
+      "parameters": [
+        {
+          "name": "agentNumber",
+          "in": "query",
+          "required": true,
+          "description": "Phone number of the team member/agent to get details for",
+          "schema": {
+            "type": "string",
+            "example": "919999999999"
+          }
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "404",
+        "422"
+      ]
+    },
+    {
+      "title": "Upload Media",
+      "url": "https://docs.doubletick.io/reference/upload-media.md",
+      "method": "POST",
+      "path": "/media/upload",
+      "summary": "Upload Media",
+      "description": "Upload Media to use in messages",
+      "tags": [
+        "Media"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "content": {
+          "multipart/form-data": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "file": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "401",
+        "402",
+        "403"
+      ]
+    },
+    {
+      "title": "Make a team member a reporting manager",
+      "url": "https://docs.doubletick.io/reference/make-team-member-reporting-manager.md",
+      "method": "POST",
+      "path": "/team-member/make-reporting-manager",
+      "summary": "Make a team member a reporting manager",
+      "description": "Promotes an existing team member to a reporting manager by creating a team for them. Optionally assigns one or more existing members directly under them.",
+      "tags": [
+        "Teams"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/MakeTeamMemberReportingManagerDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "422"
+      ]
+    },
+    {
+      "title": "Add member under reporting manager",
+      "url": "https://docs.doubletick.io/reference/add-member-under-reporting-manager.md",
+      "method": "POST",
+      "path": "/team/members",
+      "summary": "Add member under reporting manager",
+      "description": "Add member under reporting manager",
+      "tags": [
+        "Teams"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AddMembersUnderReportManagerDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "422"
+      ]
+    },
+    {
+      "title": "Delete Webhooks",
+      "url": "https://docs.doubletick.io/reference/delete-webhooks.md",
+      "method": "DELETE",
+      "path": "/v2/webhook/deregister",
+      "summary": "Delete Webhooks",
+      "description": "Delete Webhooks",
+      "tags": [
+        "Webhook"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeregisterWebhooksDtoV2"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Get all roles",
+      "url": "https://docs.doubletick.io/reference/get-all-roles.md",
+      "method": "GET",
+      "path": "/roles",
+      "summary": "Get all roles",
+      "description": "Get all roles",
+      "tags": [
+        "Roles"
+      ],
+      "parameters": [],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "401",
+        "422"
+      ]
+    },
+    {
+      "title": "Get Webhooks",
+      "url": "https://docs.doubletick.io/reference/get-webhooks.md",
+      "method": "GET",
+      "path": "/v2/webhooks",
+      "summary": "Get Webhooks",
+      "description": "Get Webhooks",
+      "tags": [
+        "Webhook"
+      ],
+      "parameters": [
+        {
+          "in": "query",
+          "name": "sortBy",
+          "schema": {
+            "type": "string",
+            "description": "Sort by",
+            "example": "name",
+            "enum": [
+              "name",
+              "url",
+              "createdBy",
+              "integrationCount"
+            ]
+          },
+          "description": "Sort by",
+          "required": false
+        },
+        {
+          "in": "query",
+          "name": "sortDirection",
+          "schema": {
+            "type": "string",
+            "description": "Sort direction",
+            "example": "DESC",
+            "enum": [
+              "ASC",
+              "DESC"
+            ]
+          },
+          "description": "Sort direction",
+          "required": false
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Update Note",
+      "url": "https://docs.doubletick.io/reference/update-note.md",
+      "method": "PATCH",
+      "path": "/notes",
+      "summary": "Update Note",
+      "description": "Update a customer note by its identifier. Rate limit: 60 requests per minute per organization.",
+      "tags": [
+        "Notes"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UpdatePublicNoteDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Create Note",
+      "url": "https://docs.doubletick.io/reference/create-note.md",
+      "method": "POST",
+      "path": "/notes",
+      "summary": "Create Note",
+      "description": "Create a note attached to a customer chat or a WA Group chat. Use `to` + `from` for customer chats, or `groupId` for WA Group chats. Rate limit: 60 requests per minute per organization.",
+      "tags": [
+        "Notes"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CreatePublicNoteDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Register New Webhook",
+      "url": "https://docs.doubletick.io/reference/register-webhook.md",
+      "method": "POST",
+      "path": "/v2/webhook/register",
+      "summary": "Register New Webhook",
+      "description": "Register New Webhook",
+      "tags": [
+        "Webhook"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RegisterPublicWebhookDtoV2"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Edit Webhooks",
+      "url": "https://docs.doubletick.io/reference/edit-webhooks.md",
+      "method": "POST",
+      "path": "/v2/webhook/{webhookId}",
+      "summary": "Edit Webhooks",
+      "description": "Edit Webhooks",
+      "tags": [
+        "Webhook"
+      ],
+      "parameters": [
+        {
+          "in": "path",
+          "name": "webhookId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "The webhook ID"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RegisterPublicWebhookDtoV2"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "List Notes",
+      "url": "https://docs.doubletick.io/reference/list-notes.md",
+      "method": "GET",
+      "path": "/notes",
+      "summary": "List Notes",
+      "description": "List notes for a customer chat or WA Group chat. Use `to` + `from` for customer chats, or `groupId` for WA Group chats. Rate limit: 60 requests per minute per organization.",
+      "tags": [
+        "Notes"
+      ],
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "query",
+          "required": false,
+          "description": "The groupId of the WA Group. Use this instead of `to`/`from` when listing notes for a group chat.",
+          "schema": {
+            "type": "string",
+            "example": "grp_AbCdEf1234"
+          }
+        },
+        {
+          "name": "from",
+          "in": "query",
+          "required": false,
+          "description": "The WABA phone number with country code. Required when not using groupId.",
+          "schema": {
+            "type": "string",
+            "example": "+919999999999",
+            "minLength": 10,
+            "maxLength": 15,
+            "format": "phone"
+          }
+        },
+        {
+          "name": "to",
+          "in": "query",
+          "required": false,
+          "description": "The customer phone number with country code. Required when not using groupId.",
+          "schema": {
+            "type": "string",
+            "example": "+919999999999",
+            "minLength": 10,
+            "maxLength": 15,
+            "format": "phone"
+          }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "description": "Maximum number of notes to return (default 30, max 100)",
+          "schema": {
+            "type": "number",
+            "example": 30
+          }
+        },
+        {
+          "name": "lastNoteId",
+          "in": "query",
+          "required": false,
+          "description": "Cursor: ID of the last note from the previous page for pagination",
+          "schema": {
+            "type": "string",
+            "example": "uuid-v4"
+          }
+        },
+        {
+          "name": "lastNoteDate",
+          "in": "query",
+          "required": false,
+          "description": "Cursor: timestamp of the last note from the previous page for pagination",
+          "schema": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-01-28T10:23:45.123Z"
+          }
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Delete Note",
+      "url": "https://docs.doubletick.io/reference/delete-note.md",
+      "method": "DELETE",
+      "path": "/notes",
+      "summary": "Delete Note",
+      "description": "Delete a customer note by its identifier. Rate limit: 60 requests per minute per organization.",
+      "tags": [
+        "Notes"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DeletePublicNoteDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Embed Chat Conversation",
+      "url": "https://docs.doubletick.io/reference/get-embed-url.md",
+      "method": "POST",
+      "path": "/embed/url",
+      "summary": "Embed Chat Conversation",
+      "description": "Returns a ready-to-use iframe URL that opens a specific WhatsApp conversation for a given contact's phone number directly inside your application. The contact's phone number is never exposed in the returned URL.",
+      "tags": [
+        "Embed"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/GetEmbedUrlDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Update Quick Reply",
+      "url": "https://docs.doubletick.io/reference/update-quick-reply-v2.md",
+      "method": "PUT",
+      "path": "/quick-replies/{shortcut}",
+      "summary": "Update Quick Reply",
+      "description": "Update a quick reply by shortcut",
+      "tags": [
+        "Quick Replies"
+      ],
+      "parameters": [
+        {
+          "in": "path",
+          "name": "shortcut",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "example": "welcome"
+          }
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "shortcut": {
+                  "type": "string",
+                  "example": "/welcome-updated"
+                },
+                "accessTo": {
+                  "type": "string",
+                  "example": "everyone"
+                },
+                "rawMessage": {
+                  "type": "object",
+                  "example": {
+                    "messageType": "text",
+                    "text": "Hi {{customer_name}}, your query has been received."
+                  }
+                }
+              },
+              "required": [
+                "shortcut",
+                "rawMessage"
+              ]
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Get Quick Reply Details",
+      "url": "https://docs.doubletick.io/reference/get-quick-reply-details-v2.md",
+      "method": "GET",
+      "path": "/quick-replies/details",
+      "summary": "Get Quick Reply Details",
+      "description": "Get a quick reply by shortcut",
+      "tags": [
+        "Quick Replies"
+      ],
+      "parameters": [
+        {
+          "in": "query",
+          "name": "shortcut",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "example": "welcome"
+          }
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Create Quick Reply",
+      "url": "https://docs.doubletick.io/reference/create-quick-reply-v2.md",
+      "method": "POST",
+      "path": "/quick-replies",
+      "summary": "Create Quick Reply",
+      "description": "Create a quick reply",
+      "tags": [
+        "Quick Replies"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "shortcut": {
+                  "type": "string",
+                  "description": "Shortcut for quick reply",
+                  "example": "/welcome"
+                },
+                "accessTo": {
+                  "type": "string",
+                  "description": "Visibility scope",
+                  "example": "everyone"
+                },
+                "rawMessage": {
+                  "type": "object",
+                  "description": "Quick reply payload",
+                  "example": {
+                    "messageType": "text",
+                    "text": "Hello {{customer_name}}, welcome to DoubleTick!"
+                  }
+                }
+              },
+              "required": [
+                "shortcut",
+                "rawMessage"
+              ]
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Get Quick Replies",
+      "url": "https://docs.doubletick.io/reference/get-quick-replies-v2.md",
+      "method": "GET",
+      "path": "/quick-replies",
+      "summary": "Get Quick Replies",
+      "description": "Get quick replies with optional cursor pagination",
+      "tags": [
+        "Quick Replies"
+      ],
+      "parameters": [
+        {
+          "in": "query",
+          "name": "accessTo",
+          "schema": {
+            "type": "string",
+            "example": "everyone"
+          },
+          "required": false
+        },
+        {
+          "in": "query",
+          "name": "searchTerm",
+          "schema": {
+            "type": "string",
+            "example": "welcome"
+          },
+          "required": false
+        },
+        {
+          "in": "query",
+          "name": "lastQuickReplyDate",
+          "schema": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-08T10:00:00.000Z"
+          },
+          "required": false
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Delete Quick Reply",
+      "url": "https://docs.doubletick.io/reference/delete-quick-reply-v2.md",
+      "method": "DELETE",
+      "path": "/quick-replies/{shortcut}",
+      "summary": "Delete Quick Reply",
+      "description": "Delete a quick reply by shortcut",
+      "tags": [
+        "Quick Replies"
+      ],
+      "parameters": [
+        {
+          "in": "path",
+          "name": "shortcut",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "example": "welcome"
+          }
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Get Note",
+      "url": "https://docs.doubletick.io/reference/get-note.md",
+      "method": "GET",
+      "path": "/note",
+      "summary": "Get Note",
+      "description": "Get a single note by its identifier. Rate limit: 60 requests per minute per organization.",
+      "tags": [
+        "Notes"
+      ],
+      "parameters": [
+        {
+          "name": "id",
+          "in": "query",
+          "required": true,
+          "description": "Unique identifier of the note",
+          "schema": {
+            "type": "string",
+            "example": "uuid-v4"
+          }
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "title": "Get AI Summary of a 1:1 Chat",
+      "url": "https://docs.doubletick.io/reference/get-chat-ai-summary.md",
+      "method": "GET",
+      "path": "/channel/chat/ai-summary",
+      "summary": "Get AI Summary of a 1:1 Chat",
+      "description": "AI summary of a 1:1 conversation over an inclusive UTC date range of at most 7 days. Requires the Chat Summary feature to be enabled for the organization, and consumes one AI summarisation credit per generation.",
+      "tags": [
+        "AI Summary"
+      ],
+      "parameters": [
+        {
+          "name": "wabaNumber",
+          "in": "query",
+          "required": true,
+          "description": "The WhatsApp Business Account (WABA) number the conversation belongs to. Digits only, no leading +.",
+          "schema": {
+            "type": "string",
+            "example": "919999999998"
+          }
+        },
+        {
+          "name": "customerNumber",
+          "in": "query",
+          "required": true,
+          "description": "The customer's WhatsApp number, with country code. Digits only, no leading +.",
+          "schema": {
+            "type": "string",
+            "example": "15551230000"
+          }
+        },
+        {
+          "name": "startDate",
+          "in": "query",
+          "required": true,
+          "description": "Inclusive start of the range (UTC, day granularity).",
+          "schema": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-06-15"
+          }
+        },
+        {
+          "name": "endDate",
+          "in": "query",
+          "required": true,
+          "description": "Inclusive end of the range (UTC). Must be on or after `startDate`, and at most 7 days from it.",
+          "schema": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-06-21"
+          }
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403",
+        "404",
+        "422",
+        "429"
+      ]
+    },
+    {
+      "title": "Clear chat messages",
+      "url": "https://docs.doubletick.io/reference/clear-chat-messages-v2.md",
+      "method": "DELETE",
+      "path": "/conversation/chat/messages",
+      "summary": "Clear chat messages",
+      "description": "Clear all chat messages for a chat (async)",
+      "tags": [
+        "Conversation"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ClearChatMessagesBodyDtoV2"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403",
+        "404"
+      ]
+    },
+    {
+      "title": "Add chat collaborators",
+      "url": "https://docs.doubletick.io/reference/public-chat-collaborators-add.md",
+      "method": "POST",
+      "path": "/collaborators/add",
+      "summary": "Add chat collaborators",
+      "description": "Adds team members to a chat as collaborators. Identify the chat with `from` (your WhatsApp Business number) and `to` (the customer number). `agentNumbers` must be phone numbers of users in your organization; they are matched after normalizing format (e.g. stripping + and spaces). You must have access to read the chat. The response reports per-number success and failure.",
+      "tags": [
+        "Collaborators"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PublicChatCollaboratorsAddRemoveBodyDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403"
+      ]
+    },
+    {
+      "title": "Assign a calling license to a team member",
+      "url": "https://docs.doubletick.io/reference/invoke-call-license.md",
+      "method": "POST",
+      "path": "/whatsapp/call/license/invoke",
+      "summary": "Assign a calling license to a team member",
+      "description": "Assigns a calling license to a team member identified by phone number, enabling them to make/receive calls. Requires the organization to have the calling license addon enabled and available license capacity.",
+      "tags": [
+        "Calling License"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PublicCallLicensePhoneDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403",
+        "429"
+      ]
+    },
+    {
+      "title": "Remove chat collaborators",
+      "url": "https://docs.doubletick.io/reference/public-chat-collaborators-remove.md",
+      "method": "POST",
+      "path": "/collaborators/remove",
+      "summary": "Remove chat collaborators",
+      "description": "Removes collaborators from a chat using the same `from`, `to`, and `agentNumbers` rules as add. The success and failure lists show which numbers matched a team member; they do not indicate whether that user was already a collaborator.",
+      "tags": [
+        "Collaborators"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PublicChatCollaboratorsAddRemoveBodyDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403"
+      ]
+    },
+    {
+      "title": "Fire Custom Event",
+      "url": "https://docs.doubletick.io/reference/fire-custom-event.md",
+      "method": "POST",
+      "path": "/custom-events/fire",
+      "summary": "Fire Custom Event",
+      "description": "Fire a custom event directly from your own systems (CRM, order management, etc.). Use it to track events wherever they happen, and see them in Funnel alongside your WhatsApp conversation data.",
+      "tags": [
+        "Custom Events"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/FireCustomEventDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "403",
+        "404",
+        "429"
+      ]
+    },
+    {
+      "title": "Get AI Summary of a WhatsApp Group",
+      "url": "https://docs.doubletick.io/reference/get-wa-group-ai-summary.md",
+      "method": "GET",
+      "path": "/channel/wa-group/ai-summary",
+      "summary": "Get AI Summary of a WhatsApp Group",
+      "description": "AI summary of a WhatsApp group conversation over an inclusive UTC date range of at most 7 days, plus the members who messaged in that range. Requires the Chat Summary feature to be enabled for the organization, and consumes one AI summarisation credit per generation.",
+      "tags": [
+        "AI Summary"
+      ],
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "query",
+          "required": true,
+          "description": "The group's identifier (the `clientCustomGroupId` you assigned when creating the group).",
+          "schema": {
+            "type": "string",
+            "example": "vip-support-42"
+          }
+        },
+        {
+          "name": "startDate",
+          "in": "query",
+          "required": true,
+          "description": "Inclusive start of the range (UTC, day granularity).",
+          "schema": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-06-15"
+          }
+        },
+        {
+          "name": "endDate",
+          "in": "query",
+          "required": true,
+          "description": "Inclusive end of the range (UTC). Must be on or after `startDate`, and at most 7 days from it.",
+          "schema": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-06-21"
+          }
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403",
+        "404",
+        "422",
+        "429"
+      ]
+    },
+    {
+      "title": "Set agent ONLINE/OFFLINE",
+      "url": "https://docs.doubletick.io/reference/public-agent-status.md",
+      "method": "POST",
+      "path": "/agent/status",
+      "summary": "Set agent ONLINE/OFFLINE",
+      "description": "Updates an agent's availability to online or offline. The agent is selected by `phone` (must match the phone stored on the user profile). Requires Agent Availability to be enabled for the organization. When status changes, an `ASSIGNED_AGENT_STATUS_CHANGED` webhook may be sent per WhatsApp integration where the user has assigned chats.",
+      "tags": [
+        "Agent"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PublicAgentStatusBodyDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401"
+      ]
+    },
+    {
+      "title": "Revoke a calling license from a team member",
+      "url": "https://docs.doubletick.io/reference/revoke-call-license.md",
+      "method": "POST",
+      "path": "/whatsapp/call/license/revoke",
+      "summary": "Revoke a calling license from a team member",
+      "description": "Revokes a previously assigned calling license from a team member identified by phone number, disabling their ability to make/receive calls.",
+      "tags": [
+        "Calling License"
+      ],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PublicCallLicensePhoneDto"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403",
+        "429"
+      ]
+    },
+    {
+      "title": "Create outgoing call",
+      "url": "https://docs.doubletick.io/reference/createoutgoingcall.md",
+      "method": "POST",
+      "path": "/whatsapp/call/create",
+      "summary": "Create outgoing call",
+      "description": "Initiates an outgoing WhatsApp voice call to a customer.",
+      "tags": [],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "from",
+                "to",
+                "sdp",
+                "sdpType"
+              ],
+              "properties": {
+                "from": {
+                  "type": "string",
+                  "description": "WABA number to call from"
+                },
+                "to": {
+                  "type": "string",
+                  "description": "Customer phone number in E.164 format"
+                },
+                "sdp": {
+                  "type": "string",
+                  "description": "WebRTC SDP offer"
+                },
+                "sdpType": {
+                  "type": "string",
+                  "example": "offer"
+                },
+                "deviceId": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "title": "Keep call alive",
+      "url": "https://docs.doubletick.io/reference/pingcall.md",
+      "method": "GET",
+      "path": "/whatsapp/call/ping",
+      "summary": "Keep call alive",
+      "description": "Keeps an active call session alive.",
+      "tags": [],
+      "parameters": [
+        {
+          "name": "callId",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/CallId"
+          }
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "title": "Accept incoming call",
+      "url": "https://docs.doubletick.io/reference/acceptincomingcall.md",
+      "method": "POST",
+      "path": "/whatsapp/accept",
+      "summary": "Accept incoming call",
+      "description": "Accepts an incoming WhatsApp call and joins the session.",
+      "tags": [],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "callId",
+                "sdp",
+                "sdpType"
+              ],
+              "properties": {
+                "callId": {
+                  "$ref": "#/components/schemas/CallId"
+                },
+                "sdp": {
+                  "type": "string"
+                },
+                "sdpType": {
+                  "type": "string"
+                },
+                "reconnect": {
+                  "type": "boolean"
+                },
+                "deviceId": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "title": "Get call permissions",
+      "url": "https://docs.doubletick.io/reference/getcallpermissions.md",
+      "method": "GET",
+      "path": "/whatsapp/call/call-permissions",
+      "summary": "Get call permissions",
+      "description": "Returns WhatsApp call permission and eligibility for a customer.",
+      "tags": [],
+      "parameters": [
+        {
+          "name": "wabaNumber",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "customerId",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "client",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "version",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400"
+      ]
+    },
+    {
+      "title": "Create WhatsApp group",
+      "url": "https://docs.doubletick.io/reference/createwhatsappgroup.md",
+      "method": "POST",
+      "path": "/whatsapp/wa-group/create",
+      "summary": "Create WhatsApp group",
+      "description": "Creates a new WhatsApp group on the given WABA number.",
+      "tags": [],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CreateGroupRequest"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "title": "Decline or end call",
+      "url": "https://docs.doubletick.io/reference/declinecall.md",
+      "method": "POST",
+      "path": "/whatsapp/decline",
+      "summary": "Decline or end call",
+      "description": "Declines an incoming call or ends an active call.",
+      "tags": [],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "callId"
+              ],
+              "properties": {
+                "callId": {
+                  "$ref": "#/components/schemas/CallId"
+                }
+              }
+            }
+          }
+        }
+      },
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "title": "Reconnect call",
+      "url": "https://docs.doubletick.io/reference/reconnectcall.md",
+      "method": "POST",
+      "path": "/whatsapp/call/reconnect",
+      "summary": "Reconnect call",
+      "description": "Reconnects an active WhatsApp call.",
+      "tags": [],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "callId",
+                "callOriginType"
+              ],
+              "properties": {
+                "callId": {
+                  "$ref": "#/components/schemas/CallId"
+                },
+                "callOriginType": {
+                  "type": "string",
+                  "enum": [
+                    "INCOMING",
+                    "OUTGOING"
+                  ]
+                },
+                "sdp": {
+                  "type": "string"
+                },
+                "deviceId": {
+                  "type": "string"
+                },
+                "switchCall": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "title": "List WhatsApp groups",
+      "url": "https://docs.doubletick.io/reference/listwhatsappgroups.md",
+      "method": "GET",
+      "path": "/whatsapp/wa-group/list",
+      "summary": "List WhatsApp groups",
+      "description": "Returns a paginated list of WhatsApp groups for the given WABA number. Uses cursor-based pagination \u2014 pass `lastGroupId` and `olderThanTimestamp` from the previous response to fetch the next page.",
+      "tags": [],
+      "parameters": [
+        {
+          "name": "wabaNumber",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "WABA number to list groups for"
+        },
+        {
+          "name": "lastGroupId",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          },
+          "description": "groupId of the last group from the previous page (pagination cursor)"
+        },
+        {
+          "name": "olderThanTimestamp",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": "ISO 8601 timestamp \u2014 only return groups created before this time (pagination cursor)"
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400"
+      ]
+    },
+    {
+      "title": "Update WhatsApp group settings",
+      "url": "https://docs.doubletick.io/reference/updatewhatsappgroupsettings.md",
+      "method": "POST",
+      "path": "/whatsapp/wa-group/settings",
+      "summary": "Update WhatsApp group settings",
+      "description": "Updates the settings (subject, description, groupId) of an existing WhatsApp group identified by its groupId.",
+      "tags": [],
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Unique identifier of the group to update"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UpdateGroupSettingsRequest"
+            }
+          }
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "404"
+      ]
+    },
+    {
+      "title": "Get WhatsApp group info",
+      "url": "https://docs.doubletick.io/reference/getwhatsappgroupinfo.md",
+      "method": "GET",
+      "path": "/whatsapp/wa-group/info",
+      "summary": "Get WhatsApp group info",
+      "description": "Returns information about a WhatsApp group by its groupId.",
+      "tags": [],
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Unique identifier for the group"
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "404"
+      ]
+    },
+    {
+      "title": "Remove participant from WhatsApp group",
+      "url": "https://docs.doubletick.io/reference/removewhatsappgroupparticipant.md",
+      "method": "DELETE",
+      "path": "/whatsapp/wa-group/participants",
+      "summary": "Remove participant from WhatsApp group",
+      "description": "Removes a participant from a WhatsApp group by their phone number.",
+      "tags": [],
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Unique identifier for the group"
+        },
+        {
+          "name": "participantPhone",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Phone number of the participant to remove (e.g. +15551230000)"
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "404"
+      ]
+    },
+    {
+      "title": "Delete WhatsApp group",
+      "url": "https://docs.doubletick.io/reference/deletewhatsappgroup.md",
+      "method": "DELETE",
+      "path": "/whatsapp/wa-group",
+      "summary": "Delete WhatsApp group",
+      "description": "Deletes a WhatsApp group by its groupId.",
+      "tags": [],
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Unique identifier for the group"
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "404"
+      ]
+    },
+    {
+      "title": "Get WhatsApp group participants",
+      "url": "https://docs.doubletick.io/reference/getwhatsappgroupparticipants.md",
+      "method": "GET",
+      "path": "/whatsapp/wa-group/participants",
+      "summary": "Get WhatsApp group participants",
+      "description": "Returns a paginated list of participants for a specific WhatsApp group. Uses cursor-based pagination \u2014 pass `lastPhoneNumber` and `olderThanTimestamp` from the previous response to fetch the next page.",
+      "tags": [],
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Unique identifier for the group"
+        },
+        {
+          "name": "lastPhoneNumber",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Phone number of the last participant from the previous page (pagination cursor)"
+        },
+        {
+          "name": "olderThanTimestamp",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": "ISO 8601 timestamp \u2014 only return participants who joined before this time (pagination cursor)"
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "404"
+      ]
+    },
+    {
+      "title": "Get an AI summary of a WhatsApp group conversation",
+      "url": "https://docs.doubletick.io/reference/getwhatsappgroupaisummary.md",
+      "method": "GET",
+      "path": "/channel/wa-group/ai-summary",
+      "summary": "Get an AI summary of a WhatsApp group conversation",
+      "description": "Returns an AI-generated summary of a WhatsApp group conversation for an exact date range. Note: the legacy `/whatsapp/wa-group/ai-summary` spelling still resolves via the generic group passthrough, but `/channel/wa-group/ai-summary` is the canonical path. The range is inclusive, interpreted in UTC at day granularity, and may span at most 7 days (Monday to Sunday is allowed; an 8th day is rejected). The summary is generated once per distinct date range and stored, so repeating the same request returns the stored copy without a further AI call. It is regenerated automatically when the conversation inside the range changes. Each generation consumes one AI summarisation credit; a stored result costs nothing. Requires the chat-summary feature to be enabled for the organization.",
+      "tags": [],
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "Unique identifier for the group"
+        },
+        {
+          "name": "startDate",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          },
+          "description": "Inclusive start of the range (UTC). Example: 2026-06-15"
+        },
+        {
+          "name": "endDate",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "date"
+          },
+          "description": "Inclusive end of the range (UTC). Must be on or after startDate, and at most 7 days from it. Example: 2026-06-21"
+        }
+      ],
+      "requestBody": {},
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403",
+        "404",
+        "422",
+        "429"
+      ]
+    }
+  ],
+  "webhooks": [
+    {
+      "title": "Edit Webhook",
+      "url": "https://docs.doubletick.io/docs/edit-webhook.md",
+      "desc": "Modify an existing webhook\u2019s configuration using the DoubleTick API, allowing updates to event types, headers, URLs, and retry settings for seamless event tracking. \ud83d\ude80",
+      "file": "edit-webhook.md"
+    },
+    {
+      "title": "Delete Webhook",
+      "url": "https://docs.doubletick.io/docs/delete-webhook.md",
+      "desc": "Remove a registered webhook using the DoubleTick API to stop receiving unnecessary event notifications and keep your system optimized. \ud83d\ude80",
+      "file": "delete-webhook.md"
+    },
+    {
+      "title": "Register New Webhook",
+      "url": "https://docs.doubletick.io/docs/register-new-webhook.md",
+      "desc": "Set up real-time event notifications using the DoubleTick API by registering a webhook to capture message status updates, customer interactions, and system events. \ud83d\ude80",
+      "file": "register-new-webhook.md"
+    },
+    {
+      "title": "Getting Started with DoubleTick Webhooks",
+      "url": "https://docs.doubletick.io/docs/getting-started-with-doubletick-webhooks.md",
+      "desc": "Learn how to register webhooks, capture events, and securely access media URLs with DoubleTick.",
+      "file": "getting-started-with-doubletick-webhooks.md"
+    },
+    {
+      "title": "Get Webhooks",
+      "url": "https://docs.doubletick.io/docs/get-webhooks-1.md",
+      "desc": "Retrieve a list of registered webhooks, including their event types and associated WABA numbers, using the DoubleTick API for seamless event tracking. \ud83d\ude80",
+      "file": "get-webhooks-1.md"
+    },
+    {
+      "title": "Delete Webhooks",
+      "url": "https://docs.doubletick.io/reference/delete-webhooks.md",
+      "desc": "Delete Webhooks",
+      "file": "delete-webhooks.md"
+    },
+    {
+      "title": "Get Webhooks",
+      "url": "https://docs.doubletick.io/reference/get-webhooks.md",
+      "desc": "Get Webhooks",
+      "file": "get-webhooks.md"
+    },
+    {
+      "title": "Register New Webhook",
+      "url": "https://docs.doubletick.io/reference/register-webhook.md",
+      "desc": "Register New Webhook",
+      "file": "register-webhook.md"
+    },
+    {
+      "title": "Edit Webhooks",
+      "url": "https://docs.doubletick.io/reference/edit-webhooks.md",
+      "desc": "Edit Webhooks",
+      "file": "edit-webhooks.md"
+    },
+    {
+      "title": "Messaging Webhooks",
+      "url": "https://docs.doubletick.io/reference/messaging-webhooks-1.md",
+      "desc": "Receive real-time notifications for inbound and outbound WhatsApp messaging activity, including received messages, delivery status changes, and Click-to-WhatsApp ad attribution.",
+      "file": "messaging-webhooks-1.md"
+    },
+    {
+      "title": "Customer Notes Webhooks",
+      "url": "https://docs.doubletick.io/reference/customer-notes-webhooks-1.md",
+      "desc": "Receive notifications whenever notes are created, updated, or deleted on customer conversations. These events help synchronize internal conversation context, agent observations, follow-up instructions, and operational notes across external systems.",
+      "file": "customer-notes-webhooks-1.md"
+    },
+    {
+      "title": "Conversation Management Webhooks",
+      "url": "https://docs.doubletick.io/reference/conversation-management-webhooks.md",
+      "desc": "Track conversation lifecycle events such as when conversations are opened, closed, assigned, or unassigned. These webhooks help you synchronize ownership, automate workflows, and maintain an up-to-date view of customer conversations within your external systems.",
+      "file": "conversation-management-webhooks.md"
+    },
+    {
+      "title": "Widget & Lead Webhooks",
+      "url": "https://docs.doubletick.io/reference/widget-lead-webhooks.md",
+      "desc": "Receive real-time notifications when a customer contacts your WhatsApp Business Account for the first time, submits a DoubleTick widget form, or when that submission is later linked to a WhatsApp contact.",
+      "file": "widget-lead-webhooks.md"
+    },
+    {
+      "title": "SLA Webhooks",
+      "url": "https://docs.doubletick.io/reference/sla-webhooks.md",
+      "desc": "Receive real-time notifications when a conversation's response-time SLA escalates to the next configured level.",
+      "file": "sla-webhooks.md"
+    },
+    {
+      "title": "Customer Data Webhooks",
+      "url": "https://docs.doubletick.io/reference/customer-data-webhooks.md",
+      "desc": "Receive notifications whenever tags are added to or removed from customer conversations, or when a customer's custom field value is created, updated, or removed. Use these events to keep customer segmentation, CRM labels, and profile data synchronized across external systems.",
+      "file": "customer-data-webhooks.md"
+    },
+    {
+      "title": "DoubleTick Webhooks",
+      "url": "https://docs.doubletick.io/reference/webhooks-1.md",
+      "desc": "Receive real-time event notifications from DoubleTick and WhatsApp Cloud API to automate workflows, synchronize data, and react instantly to customer and conversation activities.",
+      "file": "webhooks-1.md"
+    },
+    {
+      "title": "Template Webhooks",
+      "url": "https://docs.doubletick.io/reference/template-webhooks.md",
+      "desc": "Receive real-time notifications whenever the approval status of a WhatsApp message template changes.",
+      "file": "template-webhooks.md"
+    },
+    {
+      "title": "Agent Presence Webhooks",
+      "url": "https://docs.doubletick.io/reference/agent-presence-webhooks.md",
+      "desc": "Receive real-time notifications when an agent changes their availability status in DoubleTick, with details of which customers' conversations are affected.",
+      "file": "agent-presence-webhooks.md"
+    },
+    {
+      "title": "WhatsApp Group Webhooks",
+      "url": "https://docs.doubletick.io/reference/whatsapp-group-webhooks.md",
+      "desc": "Receive real-time notifications for activity inside WhatsApp Groups managed through DoubleTick \u2014 including group creation, membership changes, and inbound group messages.",
+      "file": "whatsapp-group-webhooks.md"
+    },
+    {
+      "title": "Conversation Cost Webhooks",
+      "url": "https://docs.doubletick.io/reference/conversation-cost-webhooks.md",
+      "desc": "Receive a real-time notification whenever a WhatsApp conversation fee is charged against your DoubleTick wallet balance.",
+      "file": "conversation-cost-webhooks.md"
+    },
+    {
+      "title": "Call Webhooks",
+      "url": "https://docs.doubletick.io/reference/call-webhooks.md",
+      "desc": "Receive real-time notifications for inbound and outbound voice call activity on your WhatsApp Business Account, including call lifecycle events and customer permission responses.",
+      "file": "call-webhooks.md"
+    }
+  ],
+  "guides": [
+    {
+      "title": "Getting Started with DoubleTick",
+      "url": "https://docs.doubletick.io/docs/getting-started.md",
+      "desc": "Power up your business with DoubleTick \u2013 the ultimate WhatsApp API for automation, engagement, and seamless customer communication! \ud83d\ude80"
+    },
+    {
+      "title": "Quick Started",
+      "url": "https://docs.doubletick.io/docs/quickstart-guide.md",
+      "desc": "Easily integrate with the DoubleTick API to manage customer interactions, team permissions, and webhooks. This guide walks you through creating your account, generating an API key, and setting up your first API call. \ud83d\ude80"
+    },
+    {
+      "title": "Send WhatsApp Template Message",
+      "url": "https://docs.doubletick.io/docs/template-messages.md",
+      "desc": "Send WhatsApp template messages via the DoubleTick API for reliable, structured, and automated customer communication. \ud83d\ude80"
+    },
+    {
+      "title": "Send WhatsApp Text Messages",
+      "url": "https://docs.doubletick.io/docs/text-messages.md",
+      "desc": "Send instant and direct WhatsApp text messages via the DoubleTick API for seamless customer communication within the last 24-hour session window. \ud83d\ude80"
+    },
+    {
+      "title": "Send WhatsApp Video Messages",
+      "url": "https://docs.doubletick.io/docs/video-messages.md",
+      "desc": "Share high-quality videos seamlessly via WhatsApp using the DoubleTick API, enhancing customer interactions with dynamic multimedia content. \ud83c\udfa5\ud83d\ude80"
+    },
+    {
+      "title": "Send WhatsApp Audio Messages",
+      "url": "https://docs.doubletick.io/docs/audio-messages.md",
+      "desc": "Send high-quality audio messages via the DoubleTick API to enhance customer engagement with voice communication. \ud83d\ude80"
+    },
+    {
+      "title": "Send WhatsApp Image Messages",
+      "url": "https://docs.doubletick.io/docs/image-messages.md",
+      "desc": "Share stunning images instantly via WhatsApp using the DoubleTick API, making conversations more engaging and visually appealing. \ud83d\udcf8\ud83d\ude80"
+    },
+    {
+      "title": "Send WhatsApp Document Messages",
+      "url": "https://docs.doubletick.io/docs/document-messages.md",
+      "desc": "Easily share PDFs, spreadsheets, and other documents through WhatsApp using the DoubleTick API for seamless file transfer. \ud83d\ude80"
+    },
+    {
+      "title": "Send WhatsApp Location Messages",
+      "url": "https://docs.doubletick.io/docs/location-messages.md",
+      "desc": "Share precise locations instantly via the DoubleTick API, enabling seamless navigation and real-time customer engagement. \ud83d\ude80"
+    },
+    {
+      "title": "Send WhatsApp Interactive Button Messages",
+      "url": "https://docs.doubletick.io/docs/interactive-button-messages.md",
+      "desc": "Enhance customer engagement with interactive button messages using the DoubleTick API, allowing users to respond quickly with predefined options. \ud83c\udfaf\ud83d\ude80"
+    },
+    {
+      "title": "Send WhatsApp Interactive List Messages",
+      "url": "https://docs.doubletick.io/docs/interactive-list-messages.md",
+      "desc": "Allow customers to effortlessly choose from a structured list of options using the DoubleTick API, making interactions smoother and more intuitive. \ud83d\udccb\u2705"
+    },
+    {
+      "title": "Send WhatsApp Typing Indicator",
+      "url": "https://docs.doubletick.io/docs/typing-indicator.md",
+      "desc": "Simulate real-time presence\u2014let your customers know you\u2019re typing before the message arrives."
+    },
+    {
+      "title": "Export Chats For a Customer For Given WabaNumber",
+      "url": "https://docs.doubletick.io/docs/export-chats.md",
+      "desc": "Easily export WhatsApp chat history, including media, using the DoubleTick API for compliance, audits, and customer insights. \ud83d\ude80"
+    },
+    {
+      "title": "Get chat messages for a customer of WABA number",
+      "url": "https://docs.doubletick.io/docs/get-chat-messages-1.md",
+      "desc": "Retrieve WhatsApp chat messages for a specific customer using the DoubleTick API, enabling seamless record-keeping and interaction analysis. \ud83d\ude80"
+    },
+    {
+      "title": "Send Template WhatsApp Message to a Broadcast Group",
+      "url": "https://docs.doubletick.io/docs/broadcast-template-messages.md",
+      "desc": "Send WhatsApp template messages to all members of a broadcast group efficiently using the DoubleTick API for seamless bulk communication. \ud83d\ude80"
+    },
+    {
+      "title": "Create a New Broadcast Group",
+      "url": "https://docs.doubletick.io/docs/create-group-1.md",
+      "desc": "Easily create WhatsApp broadcast groups with the DoubleTick API to manage and send messages to multiple recipients efficiently. \ud83d\ude80"
+    },
+    {
+      "title": "Delete a Broadcast Group",
+      "url": "https://docs.doubletick.io/docs/delete-group.md",
+      "desc": "Easily remove one or more WhatsApp broadcast groups using the DoubleTick API to keep your messaging lists organized and up-to-date. \ud83d\ude80"
+    },
+    {
+      "title": "Get Paginated Broadcast Groups",
+      "url": "https://docs.doubletick.io/docs/get-groups.md",
+      "desc": "Retrieve and manage WhatsApp broadcast groups efficiently using the DoubleTick API with advanced filtering, sorting, and pagination support. \ud83d\ude80"
+    },
+    {
+      "title": "Add Members to a Broadcast Group",
+      "url": "https://docs.doubletick.io/docs/add-members-to-a-group.md",
+      "desc": "Easily add new members to an existing WhatsApp broadcast group using the DoubleTick API for dynamic audience management and targeted messaging. \ud83d\ude80"
+    },
+    {
+      "title": "Create New WhatsApp Template",
+      "url": "https://docs.doubletick.io/docs/create-new-template.md",
+      "desc": "Easily create WhatsApp message templates with the DoubleTick API, ensuring seamless and compliant customer communication. \u2728\ud83d\udce9"
+    },
+    {
+      "title": "Delete a WhatsApp Template",
+      "url": "https://docs.doubletick.io/docs/delete-template-1.md",
+      "desc": "Easily delete existing WhatsApp message templates using the DoubleTick API, ensuring efficient management of your templates. \ud83d\uddd1\ufe0f\u2705"
+    },
+    {
+      "title": "Edit a WhatsApp Template",
+      "url": "https://docs.doubletick.io/docs/edit-template-1.md",
+      "desc": "Easily update your existing WhatsApp templates with the DoubleTick API to keep your messages relevant and compliant with business needs. \u270f\ufe0f\u2705"
+    },
+    {
+      "title": "Get WhatsApp Templates",
+      "url": "https://docs.doubletick.io/docs/get-template.md",
+      "desc": "Retrieve your WhatsApp templates effortlessly with the DoubleTick API, filtering by status, category, language, and more for seamless template management. \ud83d\udcc4\u2705"
+    },
+    {
+      "title": "Get Customer Details",
+      "url": "https://docs.doubletick.io/docs/get-customer-details-1.md",
+      "desc": "Quickly retrieve customer details using the DoubleTick API, ensuring seamless access to contact information, assigned users, and custom fields. \ud83d\udd0d\u2705"
+    },
+    {
+      "title": "Assign Custom Fields and/or Tags to Customer",
+      "url": "https://docs.doubletick.io/docs/assign-custom-fields-andor-tags-to-customer.md",
+      "desc": "Easily assign custom fields and tags to customers using the DoubleTick API, enabling better segmentation and personalized interactions. \ud83c\udff7\ufe0f\u2705"
+    },
+    {
+      "title": "Remove Custom Fields and/or Tags from Customer",
+      "url": "https://docs.doubletick.io/docs/remove-custom-fields-andor-tags-from-customer.md",
+      "desc": "Effortlessly remove assigned tags or custom fields from a customer using the DoubleTick API to keep customer data clean and up-to-date. \ud83d\ude80"
+    },
+    {
+      "title": "Check Reverted on Time",
+      "url": "https://docs.doubletick.io/docs/check-reverted-on-time-1.md",
+      "desc": "Track customer responsiveness with the DoubleTick API by verifying if a reply was received within a specified timeframe for better engagement monitoring. \ud83d\ude80"
+    },
+    {
+      "title": "Assign Team Member to Customer",
+      "url": "https://docs.doubletick.io/docs/assign-team-member-to-customer-1.md",
+      "desc": "Easily assign a team member to a customer using the DoubleTick API to streamline communication and enhance customer management. \ud83d\ude80"
+    },
+    {
+      "title": "Get Chat Window Status",
+      "url": "https://docs.doubletick.io/docs/get-chat-window-status-1.md",
+      "desc": "Get chat window status for a customer with given WABA number \ud83d\udcab"
+    },
+    {
+      "title": "Assign Team Member to Chat",
+      "url": "https://docs.doubletick.io/docs/assign-team-member-to-chat-1.md",
+      "desc": "Easily assign team members to customer chats using the DoubleTick API, ensuring efficient support and seamless communication. \ud83d\udc65\u2705"
+    },
+    {
+      "title": "Unassign Team Member to Chat",
+      "url": "https://docs.doubletick.io/docs/unassign-team-member-to-chat.md",
+      "desc": "Easily unassign team members from customer chats using the DoubleTick API, ensuring flexible and efficient support management. \ud83d\udd04\u2705"
+    },
+    {
+      "title": "Logout A Team Member",
+      "url": "https://docs.doubletick.io/docs/logout-a-team-member.md",
+      "desc": "Securely log out team members from active sessions using the DoubleTick API, ensuring better access control and session management. \ud83d\udd12\u2705"
+    },
+    {
+      "title": "Get Wallet Balance",
+      "url": "https://docs.doubletick.io/docs/get-wallet-balance.md",
+      "desc": "Retrieve your current DoubleTick wallet balance instantly to ensure sufficient funds for seamless API operations. \ud83d\ude80"
+    },
+    {
+      "title": "Get Team",
+      "url": "https://docs.doubletick.io/docs/get-team-1.md",
+      "desc": "Retrieve a complete list of team members, including their roles and reporting hierarchy, using the DoubleTick API for efficient team management. \ud83d\ude80"
+    },
+    {
+      "title": "Change Reporting Manager",
+      "url": "https://docs.doubletick.io/docs/change-reporting-manager-1.md",
+      "desc": "Update a team member\u2019s reporting manager using the DoubleTick API to maintain an accurate and organized team hierarchy. \ud83d\ude80"
+    },
+    {
+      "title": "Remove Team Member",
+      "url": "https://docs.doubletick.io/docs/remove-team-member-1.md",
+      "desc": "Efficiently remove a team member from your organization using the DoubleTick API to maintain an updated and structured team hierarchy. \ud83d\ude80"
+    },
+    {
+      "title": "Add Member Under Reporting Manager",
+      "url": "https://docs.doubletick.io/docs/add-member-under-reporting-manager-1.md",
+      "desc": "Easily add members under a reporting manager using the DoubleTick API, ensuring accurate team hierarchy and streamlined access control. \ud83d\udc65\u2705"
+    },
+    {
+      "title": "Get Team Member Details",
+      "url": "https://docs.doubletick.io/docs/get-team-member-details-1.md",
+      "desc": "Get detailed information about a specific team member including their role, reporting managers, and organization details \ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67\u200d\ud83d\udc66"
+    },
+    {
+      "title": "Get All Roles",
+      "url": "https://docs.doubletick.io/docs/get-all-roles-1.md",
+      "desc": "Retrieve all available roles with the DoubleTick API, enabling comprehensive role-based access control and permission management. \ud83d\udd0d\u2705"
+    },
+    {
+      "title": "Upload Media",
+      "url": "https://docs.doubletick.io/docs/upload-media-1.md",
+      "desc": "Easily upload media files using the DoubleTick API, supporting images, videos, and documents for seamless WhatsApp messaging. \ud83d\udce4\u2705"
+    },
+    {
+      "title": "Initiate AI Bot Call",
+      "url": "https://docs.doubletick.io/docs/initiate-ai-bot-call.md",
+      "desc": "Start an outbound AI-powered voice call to a customer over WhatsApp or PSTN."
+    },
+    {
+      "title": "Initiate Agent Call",
+      "url": "https://docs.doubletick.io/docs/initiate-agent-call.md",
+      "desc": "Initiate a PSTN call between your team member and a customer through DoubleTick."
+    },
+    {
+      "title": "Register New Webhook",
+      "url": "https://docs.doubletick.io/docs/register-new-webhook.md",
+      "desc": "Set up real-time event notifications using the DoubleTick API by registering a webhook to capture message status updates, customer interactions, and system events. \ud83d\ude80"
+    },
+    {
+      "title": "Get Webhooks",
+      "url": "https://docs.doubletick.io/docs/get-webhooks-1.md",
+      "desc": "Retrieve a list of registered webhooks, including their event types and associated WABA numbers, using the DoubleTick API for seamless event tracking. \ud83d\ude80"
+    },
+    {
+      "title": "Delete Webhook",
+      "url": "https://docs.doubletick.io/docs/delete-webhook.md",
+      "desc": "Remove a registered webhook using the DoubleTick API to stop receiving unnecessary event notifications and keep your system optimized. \ud83d\ude80"
+    },
+    {
+      "title": "Edit Webhook",
+      "url": "https://docs.doubletick.io/docs/edit-webhook.md",
+      "desc": "Modify an existing webhook\u2019s configuration using the DoubleTick API, allowing updates to event types, headers, URLs, and retry settings for seamless event tracking. \ud83d\ude80"
+    },
+    {
+      "title": "Getting Started with DoubleTick Webhooks",
+      "url": "https://docs.doubletick.io/docs/getting-started-with-doubletick-webhooks.md",
+      "desc": "Learn how to register webhooks, capture events, and securely access media URLs with DoubleTick."
+    },
+    {
+      "title": "CleverTap WhatsApp Integration",
+      "url": "https://docs.doubletick.io/docs/clevertap-integration.md",
+      "desc": "Integrate CleverTap with DoubleTick to send WhatsApp messages, manage templates, and receive delivery and inbound message events seamlessly."
+    },
+    {
+      "title": "Bitrix24 Integration with DoubleTick",
+      "url": "https://docs.doubletick.io/docs/bitrix24-integration-with-doubletick.md",
+      "desc": "Connect Bitrix24 with DoubleTick to streamline WhatsApp communication, manage conversations within CRM, and improve response efficiency for your leads and customers."
+    },
+    {
+      "title": "Embed WhatsApp Conversations Inside Your Product",
+      "url": "https://docs.doubletick.io/docs/embed-chat-conversation.md",
+      "desc": "Get a ready-to-use iframe URL that opens a specific WhatsApp conversation for a given contact's phone number directly inside your application."
+    },
+    {
+      "title": "Custom CRM Integration",
+      "url": "https://docs.doubletick.io/docs/custom-crm-integration.md",
+      "desc": "Embed DoubleTick conversations directly inside your CRM with automatic login for your CRM users."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+    "name": "doubletick/bitrix24-local-app",
+    "description": "Enterprise Bitrix24 Local Application for DoubleTick WhatsApp Business API",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "DoubleTickB24\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=8.1"
+    }
+}
