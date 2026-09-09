@@ -25,10 +25,8 @@ use DoubleTickB24\DoubleTick\DoubleTickClient;
 $config = require dirname(__DIR__) . '/config/config.php';
 
 /**
- * Safely extract text, media URL, and media type from any DoubleTick message structure
- */
-/**
- * Safely extract text, media URL, and media type from any DoubleTick/WhatsApp message structure
+ * Safely extract text, media URL, and media type from any DoubleTick/WhatsApp message structure.
+ * Guaranteed to NEVER return the literal string "Array" or "[object Object]".
  */
 function extractDtMessageContent($msg): array {
     $text = '';
@@ -37,6 +35,9 @@ function extractDtMessageContent($msg): array {
 
     if (is_string($msg)) {
         $trimmed = trim($msg);
+        if ($trimmed === 'Array' || $trimmed === '[object Object]') {
+            return ['text' => '', 'media_url' => null, 'media_type' => 'text'];
+        }
         if ($trimmed !== '' && ($trimmed[0] === '{' || $trimmed[0] === '[')) {
             $decoded = json_decode($trimmed, true);
             if (is_array($decoded)) {
@@ -45,9 +46,35 @@ function extractDtMessageContent($msg): array {
         }
         return ['text' => $msg, 'media_url' => null, 'media_type' => 'text'];
     }
+
     if (!is_array($msg)) {
         return ['text' => (string)$msg, 'media_url' => null, 'media_type' => 'text'];
     }
+
+    // Safe string resolver that recursively traverses nested arrays/objects and ignores metadata
+    $strHelper = function($val) use (&$strHelper): string {
+        if ($val === null) return '';
+        if (is_string($val)) {
+            $t = trim($val);
+            return ($t === 'Array' || $t === '[object Object]') ? '' : $t;
+        }
+        if (is_numeric($val)) return (string)$val;
+        if (is_array($val)) {
+            if (isset($val['body'])) return $strHelper($val['body']);
+            if (isset($val['text'])) return $strHelper($val['text']);
+            if (isset($val['content'])) return $strHelper($val['content']);
+            if (isset($val['value'])) return $strHelper($val['value']);
+            if (isset($val['title'])) return $strHelper($val['title']);
+            if (isset($val['message'])) return $strHelper($val['message']);
+            // Try first valid string in sub-elements
+            foreach ($val as $k => $sub) {
+                if (in_array($k, ['id', 'messageId', 'sender_name', 'senderName', 'files'])) continue;
+                $res = $strHelper($sub);
+                if ($res !== '') return $res;
+            }
+        }
+        return '';
+    };
 
     // 1. Direct media URL checks
     foreach (['mediaUrl', 'url', 'fileUrl', 'attachmentUrl', 'link'] as $urlKey) {
@@ -58,10 +85,10 @@ function extractDtMessageContent($msg): array {
     }
 
     // 2. Direct message/media type
-    if (!empty($msg['messageType'])) {
-        $mediaType = strtolower((string)$msg['messageType']);
-    } elseif (!empty($msg['type'])) {
-        $mediaType = strtolower((string)$msg['type']);
+    if (!empty($msg['messageType']) && is_string($msg['messageType'])) {
+        $mediaType = strtolower($msg['messageType']);
+    } elseif (!empty($msg['type']) && is_string($msg['type'])) {
+        $mediaType = strtolower($msg['type']);
     }
 
     // 3. Check media sub-objects (image, video, audio, document, file, voice)
@@ -72,7 +99,7 @@ function extractDtMessageContent($msg): array {
                 $mediaUrl = $msg[$mediaKey]['url'] ?? $msg[$mediaKey]['link'] ?? null;
             }
             if (empty($text) && !empty($msg[$mediaKey]['caption'])) {
-                $text = is_array($msg[$mediaKey]['caption']) ? ($msg[$mediaKey]['caption']['body'] ?? '') : (string)$msg[$mediaKey]['caption'];
+                $text = $strHelper($msg[$mediaKey]['caption']);
             }
         }
     }
@@ -80,7 +107,7 @@ function extractDtMessageContent($msg): array {
     // 4. Nested 'message' object check (recurse)
     if (empty($text) && isset($msg['message'])) {
         $nested = extractDtMessageContent($msg['message']);
-        if ($nested['text'] !== '') $text = $nested['text'];
+        if ($nested['text'] !== '' && $nested['text'] !== 'Array') $text = $nested['text'];
         if (!$mediaUrl && $nested['media_url']) $mediaUrl = $nested['media_url'];
         if ($nested['media_type'] !== 'text') $mediaType = $nested['media_type'];
     }
@@ -89,15 +116,10 @@ function extractDtMessageContent($msg): array {
     if (empty($text)) {
         foreach (['text', 'body', 'caption', 'content', 'messageText', 'description', 'title'] as $tKey) {
             if (isset($msg[$tKey])) {
-                if (is_string($msg[$tKey]) && trim($msg[$tKey]) !== '') {
-                    $text = trim($msg[$tKey]);
+                $candidate = $strHelper($msg[$tKey]);
+                if ($candidate !== '' && $candidate !== 'Array') {
+                    $text = $candidate;
                     break;
-                } elseif (is_array($msg[$tKey])) {
-                    $inner = $msg[$tKey]['body'] ?? $msg[$tKey]['text'] ?? $msg[$tKey]['content'] ?? $msg[$tKey]['value'] ?? null;
-                    if (is_string($inner) && trim($inner) !== '') {
-                        $text = trim($inner);
-                        break;
-                    }
                 }
             }
         }
@@ -107,43 +129,53 @@ function extractDtMessageContent($msg): array {
     if (empty($text) && !empty($msg['interactive']) && is_array($msg['interactive'])) {
         $inter = $msg['interactive'];
         if (!empty($inter['button_reply']['title'])) {
-            $text = "🔘 " . $inter['button_reply']['title'];
+            $text = "🔘 " . $strHelper($inter['button_reply']['title']);
         } elseif (!empty($inter['list_reply']['title'])) {
-            $text = "📋 " . $inter['list_reply']['title'];
+            $text = "📋 " . $strHelper($inter['list_reply']['title']);
         } elseif (!empty($inter['body']['text'])) {
-            $text = $inter['body']['text'];
+            $text = $strHelper($inter['body']['text']);
         }
     }
     if (empty($text) && !empty($msg['button']) && is_array($msg['button'])) {
-        $text = "🔘 " . ($msg['button']['text'] ?? $msg['button']['payload'] ?? '');
+        $text = "🔘 " . $strHelper($msg['button']['text'] ?? $msg['button']['payload'] ?? '');
     }
 
     // 7. Template checks
     if (empty($text) && !empty($msg['templateId'])) {
-        $text = "📋 Template: " . $msg['templateId'];
+        $text = "📋 Template: " . (is_string($msg['templateId']) ? $msg['templateId'] : json_encode($msg['templateId']));
         $mediaType = 'template';
     } elseif (empty($text) && !empty($msg['template_name'])) {
-        $text = "📋 Template: " . $msg['template_name'];
+        $text = "📋 Template: " . (is_string($msg['template_name']) ? $msg['template_name'] : json_encode($msg['template_name']));
         $mediaType = 'template';
     }
 
     // 8. Location checks
     if (empty($text) && !empty($msg['location']) && is_array($msg['location'])) {
-        $locName = $msg['location']['name'] ?? 'Location';
+        $locName = $strHelper($msg['location']['name'] ?? 'Location');
         $text = "📍 " . $locName;
     }
 
-    // 9. If still empty, scan any string value in the array (ignoring technical ID fields)
+    // 9. If still empty, scan any remaining string values (ignoring technical ID and metadata fields)
     if ($text === '' && empty($mediaUrl)) {
-        $ignored = ['id', 'messageId', 'dtMessageId', 'senderId', 'integrationId', 'type', 'messageType', 'status', 'direction', 'messageOriginType', 'integrationWabaNumber', 'integrationDisplayName', 'from', 'to', 'wabaNumber', 'customerNumber'];
+        $ignored = [
+            'id', 'messageId', 'dtMessageId', 'senderId', 'integrationId', 'type', 'messageType',
+            'status', 'direction', 'messageOriginType', 'integrationWabaNumber', 'integrationDisplayName',
+            'from', 'to', 'wabaNumber', 'customerNumber', 'sender_name', 'senderName', 'name', 'time',
+            'date', 'created_at', 'updated_at', 'files', 'portal_id', 'b24_chat_id', 'b24_message_id'
+        ];
         foreach ($msg as $k => $v) {
-            if (is_string($v) && !in_array($k, $ignored) && !is_numeric($v) && strlen($v) > 0 && strlen($v) < 2000) {
-                if ($v[0] !== '{' && $v[0] !== '[') {
-                    $text = $v;
+            if (!in_array($k, $ignored)) {
+                $candidate = $strHelper($v);
+                if ($candidate !== '' && $candidate !== 'Array' && strlen($candidate) < 2000) {
+                    $text = $candidate;
                     break;
                 }
             }
         }
+    }
+
+    if ($text === 'Array' || $text === '[object Object]') {
+        $text = '';
     }
 
     return [
@@ -216,13 +248,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
             $text = $content['text'];
             $mediaUrl = $content['media_url'] ?: ($m['mediaUrl'] ?? null);
 
-            // If text is still empty, check root fields of $m
-            if ($text === '') {
-                if (!empty($m['text'])) $text = is_array($m['text']) ? ($m['text']['body'] ?? json_encode($m['text'])) : (string)$m['text'];
-                elseif (!empty($m['content'])) $text = is_array($m['content']) ? ($m['content']['body'] ?? json_encode($m['content'])) : (string)$m['content'];
-                elseif (!empty($m['body'])) $text = (string)$m['body'];
-                elseif (!empty($m['caption'])) $text = (string)$m['caption'];
-                elseif (!empty($m['templateId'])) $text = "📋 Template: " . $m['templateId'];
+            // If text is still empty or "Array", check root fields of $m safely
+            if ($text === '' || $text === 'Array' || $text === '[object Object]') {
+                $fallback = extractDtMessageContent($m);
+                if ($fallback['text'] !== '' && $fallback['text'] !== 'Array') {
+                    $text = $fallback['text'];
+                }
+            }
+
+            // Final safety filter
+            if ($text === 'Array' || $text === '[object Object]') {
+                $text = '';
             }
 
             // Timestamp: DoubleTick messageTime is epoch milliseconds (e.g. 1737612046032)
@@ -305,23 +341,62 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
                 }
             }
 
-            // Auto-recovery from webhook logs if raw_data was empty
-            if ($text === '') {
+            // Auto-recovery from webhook logs if raw_data was empty or corrupted with legacy string ("Array")
+            if ($text === '' || $text === 'Array' || $text === '[object Object]') {
                 try {
-                    $whSearch = $dtId ?: $phoneSuffix;
-                    $whStmt = $db->prepare("SELECT payload FROM webhook_logs WHERE payload LIKE :search ORDER BY id DESC LIMIT 1");
-                    $whStmt->execute(['search' => '%' . $whSearch . '%']);
-                    $whRow = $whStmt->fetch();
-                    if ($whRow && !empty($whRow['payload'])) {
-                        $whContent = extractDtMessageContent($whRow['payload']);
-                        if ($whContent['text'] !== '') {
+                    $foundPayload = null;
+                    // 1. Try finding by dt_message_id if present
+                    if (!empty($dtId)) {
+                        $whStmt = $db->prepare("SELECT payload FROM webhook_logs WHERE payload LIKE :search ORDER BY id DESC LIMIT 1");
+                        $whStmt->execute(['search' => '%' . $dtId . '%']);
+                        $whRow = $whStmt->fetch();
+                        if ($whRow && !empty($whRow['payload'])) {
+                            $foundPayload = $whRow['payload'];
+                        }
+                    }
+                    // 2. Try finding by whatsapp_message_id if present
+                    if (!$foundPayload && !empty($row['whatsapp_message_id'])) {
+                        $whStmt = $db->prepare("SELECT payload FROM webhook_logs WHERE payload LIKE :search ORDER BY id DESC LIMIT 1");
+                        $whStmt->execute(['search' => '%' . $row['whatsapp_message_id'] . '%']);
+                        $whRow = $whStmt->fetch();
+                        if ($whRow && !empty($whRow['payload'])) {
+                            $foundPayload = $whRow['payload'];
+                        }
+                    }
+                    // 3. Fallback: match by phone number in webhook logs
+                    if (!$foundPayload) {
+                        $whStmt = $db->prepare("
+                            SELECT payload FROM webhook_logs 
+                            WHERE payload LIKE :phone OR payload LIKE :suffix
+                            ORDER BY id DESC LIMIT 10
+                        ");
+                        $whStmt->execute([
+                            'phone' => '%' . $cleanPhone . '%',
+                            'suffix' => '%' . $phoneSuffix . '%',
+                        ]);
+                        $whRows = $whStmt->fetchAll();
+                        foreach ($whRows as $whRow) {
+                            if (!empty($whRow['payload'])) {
+                                $whContent = extractDtMessageContent($whRow['payload']);
+                                if ($whContent['text'] !== '' && $whContent['text'] !== 'Array' && $whContent['text'] !== '[object Object]') {
+                                    $foundPayload = $whRow['payload'];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if ($foundPayload) {
+                        $whContent = extractDtMessageContent($foundPayload);
+                        if ($whContent['text'] !== '' && $whContent['text'] !== 'Array' && $whContent['text'] !== '[object Object]') {
                             $text = $whContent['text'];
                             if (!$mediaUrl && $whContent['media_url']) {
                                 $mediaUrl = $whContent['media_url'];
                             }
+                            // Backfill message_mappings so future queries are clean and instant
                             $upStmt = $db->prepare("UPDATE message_mappings SET raw_data = :rd WHERE id = :id");
                             $upStmt->execute([
-                                'rd' => json_encode(['text' => $text, 'recovered_from_webhook' => true]),
+                                'rd' => json_encode(['text' => $text, 'recovered_from_webhook' => true, 'time' => date('Y-m-d H:i:s')]),
                                 'id' => $row['id'],
                             ]);
                         }
@@ -329,6 +404,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
                 } catch (\Throwable $whEx) {
                     // Non-fatal recovery attempt
                 }
+            }
+
+            if ($text === 'Array' || $text === '[object Object]') {
+                $text = '';
             }
 
             $ts = !empty($row['created_at']) ? strtotime($row['created_at']) : time();

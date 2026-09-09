@@ -92,13 +92,22 @@ class WebhookProcessor
         $files = [];
 
         if ($type === 'TEXT') {
-            $text = (string)($messageObj['text'] ?? '');
+            if (is_array($messageObj['text'] ?? null)) {
+                $text = (string)($messageObj['text']['body'] ?? $messageObj['text']['text'] ?? $messageObj['text']['content'] ?? '');
+            } elseif (isset($messageObj['text'])) {
+                $text = (string)$messageObj['text'];
+            } elseif (isset($messageObj['body'])) {
+                $text = is_array($messageObj['body']) ? ($messageObj['body']['text'] ?? $messageObj['body']['body'] ?? '') : (string)$messageObj['body'];
+            }
+            if ($text === 'Array' || $text === '[object Object]') {
+                $text = '';
+            }
         } elseif (in_array($type, ['IMAGE', 'VIDEO', 'AUDIO', 'DOCUMENT'])) {
             $mediaUrl = (string)($messageObj['url'] ?? '');
-            $caption = (string)($messageObj['caption'] ?? '');
+            $caption = is_array($messageObj['caption'] ?? null) ? ($messageObj['caption']['body'] ?? '') : (string)($messageObj['caption'] ?? '');
             $filename = (string)($messageObj['filename'] ?? (strtolower($type) . '_file'));
 
-            if ($caption !== '') {
+            if ($caption !== '' && $caption !== 'Array') {
                 $text = $caption;
             }
             if ($mediaUrl !== '') {
