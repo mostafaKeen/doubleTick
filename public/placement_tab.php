@@ -1910,10 +1910,6 @@ header('Content-Security-Policy: frame-ancestors *');
         </div>
     </div>
     <div class="tab-actions">
-        <button class="btn btn-secondary" onclick="openDebugModal()" id="btn-open-debug-top" title="View Diagnostics & Copy Request/Response Debug Logs">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            Debug Logs
-        </button>
         <button class="btn btn-warning-glow" onclick="openTemplateModal()" id="btn-open-template-top">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
             Send Template
@@ -1980,39 +1976,15 @@ header('Content-Security-Policy: frame-ancestors *');
             <button class="btn btn-secondary composer-btn" onclick="openTemplateModal()" title="Send WhatsApp Template">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
             </button>
-            <button class="btn btn-secondary composer-btn" onclick="triggerFilePicker()" title="Attach File, Image, Document or Voice">
+            <button class="btn btn-secondary composer-btn" onclick="triggerFilePicker()" title="Attach File, Image or Document">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             </button>
             <div class="composer-input-wrapper">
                 <textarea id="message-input" class="composer-textarea" rows="1" placeholder="Type a WhatsApp message... (Enter to send, Shift+Enter for new line)"></textarea>
             </div>
-            <button id="btn-mic" class="btn btn-secondary composer-btn btn-mic" onclick="toggleVoiceRecording()" title="Record Voice Note (PTT)">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-            </button>
             <button id="btn-send" class="btn-send" onclick="handleSendAction()" title="Send WhatsApp Message">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transform: translateX(1px);"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             </button>
-        </div>
-
-        <!-- Voice Recording Active Bar -->
-        <div id="composer-recording-bar" style="display: none; width: 100%; align-items: center; justify-content: space-between; gap: 12px; background: #182229; padding: 6px 14px; border-radius: 20px; border: 1px solid rgba(239, 68, 68, 0.4);">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <span class="recording-pulse-dot"></span>
-                <span id="recording-timer" style="font-family: monospace; font-size: 14px; font-weight: 600; color: #f87171;">00:00</span>
-                <div class="recording-waveform">
-                    <span class="rec-bar b1"></span><span class="rec-bar b2"></span><span class="rec-bar b3"></span>
-                    <span class="rec-bar b4"></span><span class="rec-bar b5"></span><span class="rec-bar b6"></span>
-                    <span class="rec-bar b7"></span><span class="rec-bar b8"></span>
-                </div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <button class="btn btn-secondary" style="border-radius: 50%; width: 36px; height: 36px; padding: 0; color: #94a3b8;" onclick="cancelVoiceRecording()" title="Cancel Recording">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                </button>
-                <button class="btn-send" style="width: 36px; height: 36px; background: #10b981;" onclick="finishAndSendVoiceRecording()" title="Send Voice Note">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                </button>
-            </div>
         </div>
     </div>
 </div>
@@ -2090,30 +2062,6 @@ header('Content-Security-Policy: frame-ancestors *');
     </div>
 </div>
 
-<!-- Diagnostics & Debug Modal -->
-<div id="debug-modal" class="modal">
-    <div class="modal-content" style="max-width: 680px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                Diagnostics & Console Debug Logs
-            </h3>
-            <button onclick="closeDebugModal()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 20px;">&times;</button>
-        </div>
-        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
-            Every request, response, and DoubleTick raw payload is recorded below and in your browser's Developer Console (F12). Click <strong>Copy to Clipboard</strong> to copy the JSON and send it back.
-        </p>
-        <textarea id="debug-textarea" class="form-control" style="height: 320px; font-family: monospace; font-size: 11px; line-height: 1.45; white-space: pre; background: #0b141a; resize: vertical; border-color: rgba(255,255,255,0.15);" readonly></textarea>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px;">
-            <span id="debug-copy-status" style="font-size: 12px; color: #4ade80; font-weight: 600;"></span>
-            <div style="display: flex; gap: 8px;">
-                <button class="btn btn-secondary" onclick="closeDebugModal()">Close</button>
-                <button class="btn btn-primary" onclick="copyDebugJsonToClipboard()">📋 Copy to Clipboard</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Full Image Lightbox Modal -->
 <div id="lightbox-modal" class="lightbox-modal" onclick="closeLightbox(event)">
     <span class="lightbox-close" onclick="closeLightbox(event)">&times;</span>
@@ -2129,94 +2077,17 @@ header('Content-Security-Policy: frame-ancestors *');
 
 <script>
     // -------------------------------------------------------------
-    // Comprehensive Debug Logger & Ring Buffer
+    // Global State Holder
     // -------------------------------------------------------------
     window.keenDebugStore = {
         crmInfo: {},
         requests: [],
         lastChatHistoryResponse: null,
-        logReq: function(action, details) {
-            const entry = {
-                timestamp: new Date().toISOString(),
-                type: 'REQUEST',
-                action: action,
-                details: details
-            };
-            this.requests.push(entry);
-            if (this.requests.length > 100) this.requests.shift();
-
-            // Do not spam console with periodic history polling
-            if (action && action.includes('get_chat_history')) return;
-
-            console.groupCollapsed('%c[KEEN DoubleTick] 🚀 REQUEST: ' + action, 'color: #38bdf8; font-weight: bold; background: #0f172a; padding: 2px 6px; border-radius: 4px;');
-            console.log('Action:', action);
-            console.log('Payload / Params:', details);
-            console.log('Time:', new Date().toLocaleTimeString());
-            console.groupEnd();
-        },
-        logRes: function(action, data, status) {
-            const ok = (data && data.success !== false);
-            const entry = {
-                timestamp: new Date().toISOString(),
-                type: 'RESPONSE',
-                action: action,
-                status: status || 200,
-                success: ok,
-                data: data
-            };
-            this.requests.push(entry);
-            if (this.requests.length > 100) this.requests.shift();
-
-            // Do not spam console with periodic history polling
-            if (action && action.includes('get_chat_history')) return;
-
-            const badgeColor = ok ? '#4ade80' : '#f87171';
-            console.groupCollapsed('%c[KEEN DoubleTick] 📦 RESPONSE: ' + action + ' [' + (ok ? 'SUCCESS' : 'FAILED') + ']', 'color: ' + badgeColor + '; font-weight: bold; background: #0f172a; padding: 2px 6px; border-radius: 4px;');
-            console.log('Action:', action);
-            console.log('Status:', status || 200);
-            console.log('Response Body:', data);
-            if (data && data.messages) {
-                console.log('Messages count:', data.messages.length);
-                console.table(data.messages.map(m => ({ id: m.id, dir: m.direction, type: m.type, status: m.status, text: m.text })));
-            }
-            if (data && data.raw_dt_response) {
-                console.log('Raw DoubleTick API response:', data.raw_dt_response);
-            }
-            if (data && data.error) {
-                console.warn('Error detail:', data.error);
-            }
-            console.log('Time:', new Date().toLocaleTimeString());
-            console.groupEnd();
-        },
-        logErr: function(action, err) {
-            const entry = {
-                timestamp: new Date().toISOString(),
-                type: 'ERROR',
-                action: action,
-                error: (err && err.message) ? err.message : String(err)
-            };
-            this.requests.push(entry);
-            if (this.requests.length > 100) this.requests.shift();
-
-            if (action && action.includes('get_chat_history')) return;
-
-            console.group('%c[KEEN DoubleTick] ❌ ERROR: ' + action, 'color: #ef4444; font-weight: bold;');
-            console.error('Error Details:', err);
-            console.groupEnd();
-        },
-        exportJson: function() {
-            return JSON.stringify({
-                app: 'KEEN DoubleTick Messenger',
-                version: '2.5.0',
-                exportedAt: new Date().toISOString(),
-                crmInfo: this.crmInfo,
-                lastChatHistoryResponse: this.lastChatHistoryResponse,
-                recentNetworkLogs: this.requests
-            }, null, 2);
-        }
+        logReq: function() {},
+        logRes: function() {},
+        logErr: function() {},
+        exportJson: function() { return ''; }
     };
-
-    console.log('%c[KEEN DoubleTick] WhatsApp Messenger initialized with full debug logging.\nClick "Debug Logs" in the top toolbar or inspect window.keenDebugStore anytime.', 'color: #3F906D; font-weight: bold; font-size: 13px;');
 
     let currentPhone = '';
     let currentMemberId = '';
@@ -2786,179 +2657,6 @@ header('Content-Security-Policy: frame-ancestors *');
     // -------------------------------------------------------------
     // Voice Note (PTT) Recorder Logic
     // -------------------------------------------------------------
-    let mediaRecorder = null;
-    let audioChunks = [];
-    let recordingInterval = null;
-    let recordingStartTime = 0;
-    let isRecordingActive = false;
-
-    async function toggleVoiceRecording() {
-        if (isRecordingActive) {
-            finishAndSendVoiceRecording();
-        } else {
-            startVoiceRecording();
-        }
-    }
-
-    async function startVoiceRecording() {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            alert('Your browser does not support audio recording. Please ensure you are running on HTTPS or localhost.');
-            return;
-        }
-
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            audioChunks = [];
-
-            let options = {};
-            if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
-                options = { mimeType: 'audio/ogg;codecs=opus' };
-            } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-                options = { mimeType: 'audio/webm;codecs=opus' };
-            } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-                options = { mimeType: 'audio/webm' };
-            }
-
-            mediaRecorder = new MediaRecorder(stream, options);
-
-            mediaRecorder.ondataavailable = function(e) {
-                if (e.data && e.data.size > 0) {
-                    audioChunks.push(e.data);
-                }
-            };
-
-            mediaRecorder.onstop = function() {
-                stream.getTracks().forEach(track => track.stop());
-            };
-
-            mediaRecorder.start(100);
-            isRecordingActive = true;
-            recordingStartTime = Date.now();
-
-            document.getElementById('composer-normal-controls').style.display = 'none';
-            document.getElementById('composer-recording-bar').style.display = 'flex';
-            document.getElementById('recording-timer').innerText = '00:00';
-
-            recordingInterval = setInterval(function() {
-                const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
-                const m = Math.floor(elapsed / 60);
-                const s = elapsed % 60;
-                document.getElementById('recording-timer').innerText = 
-                    (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
-            }, 500);
-
-        } catch (err) {
-            console.error('Microphone access denied:', err);
-            alert('Could not access microphone: ' + (err.message || 'Permission denied. Please allow microphone access.'));
-        }
-    }
-
-    function cancelVoiceRecording() {
-        if (mediaRecorder && isRecordingActive) {
-            mediaRecorder.onstop = null;
-            try { mediaRecorder.stop(); } catch(e) {}
-        }
-        stopRecordingUI();
-    }
-
-    function stopRecordingUI() {
-        isRecordingActive = false;
-        if (recordingInterval) {
-            clearInterval(recordingInterval);
-            recordingInterval = null;
-        }
-        document.getElementById('composer-recording-bar').style.display = 'none';
-        document.getElementById('composer-normal-controls').style.display = 'flex';
-    }
-
-    function finishAndSendVoiceRecording() {
-        if (!mediaRecorder || !isRecordingActive) return;
-
-        const durationSec = Math.max(1, Math.floor((Date.now() - recordingStartTime) / 1000));
-
-        mediaRecorder.onstop = function() {
-            const mimeType = mediaRecorder.mimeType || 'audio/ogg';
-            const audioBlob = new Blob(audioChunks, { type: mimeType });
-            sendVoiceNoteBlob(audioBlob, durationSec);
-        };
-
-        try { mediaRecorder.stop(); } catch(e) {}
-        stopRecordingUI();
-    }
-
-    function sendVoiceNoteBlob(blob, duration) {
-        if (!currentPhone) return;
-
-        const currentDomain = (window.keenDebugStore && window.keenDebugStore.crmInfo && window.keenDebugStore.crmInfo.domain) ? window.keenDebugStore.crmInfo.domain : '';
-        const tempId = 'temp_voice_' + Date.now();
-        const container = document.getElementById('chat-messages');
-
-        console.group('%c[VOICE SEND DEBUG] 🎙️ Sending Voice Note', 'color: #a855f7; font-weight: bold; background: #1e1b4b; padding: 4px 8px; border-radius: 4px;');
-        console.log('Target Phone:', currentPhone);
-        console.log('Duration:', duration, 'seconds (Formatted:', formatDuration(duration) + ')');
-        console.log('Recorded Blob Size:', blob.size, 'bytes');
-        console.log('Recorded MIME Type:', blob.type);
-        console.log('Member ID:', currentMemberId);
-        console.log('Domain:', currentDomain);
-        console.groupEnd();
-
-        const optimisticHtml = `
-            <div class="message-row outbound" id="${tempId}">
-                <div class="bubble">
-                    <div class="wa-audio-player">
-                        <div class="wa-audio-avatar">👤<span class="wa-audio-mic-badge">🎙️</span></div>
-                        <button class="wa-audio-play-btn" disabled><svg class="icon-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
-                        <div class="wa-audio-track-container"><div class="wa-audio-waveform"><span style="height:50%"></span><span style="height:80%"></span><span style="height:40%"></span><span style="height:90%"></span></div></div>
-                        <div class="wa-audio-meta"><span class="wa-audio-time">${formatDuration(duration)}</span></div>
-                    </div>
-                    <div class="bubble-footer"><span>Uploading voice note...</span> <span class="status-check">🕒</span></div>
-                </div>
-            </div>
-        `;
-        if (container.querySelector('.empty-chat')) container.innerHTML = '';
-        container.insertAdjacentHTML('beforeend', optimisticHtml);
-        container.scrollTop = container.scrollHeight;
-
-        const formData = new FormData();
-        formData.append('action', 'send_voice_note');
-        formData.append('phone', currentPhone);
-        formData.append('duration', duration);
-        formData.append('audio_file', blob, 'voice_note.ogg');
-        formData.append('member_id', currentMemberId);
-        formData.append('domain', currentDomain);
-
-        window.keenDebugStore.logReq('send_voice_note', { phone: currentPhone, duration: duration, size: blob.size });
-
-        fetch('placement_tab.php', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                console.group('%c[VOICE SEND DEBUG] 📥 Voice Note Response', data.success ? 'color: #22c55e; font-weight: bold; background: #052e16; padding: 4px 8px; border-radius: 4px;' : 'color: #ef4444; font-weight: bold; background: #450a0a; padding: 4px 8px; border-radius: 4px;');
-                console.log('Success:', data.success);
-                console.log('Response Payload:', data);
-                console.groupEnd();
-
-                window.keenDebugStore.logRes('send_voice_note', data);
-                if (data.success) {
-                    loadChatHistory(true);
-                } else {
-                    const tempEl = document.getElementById(tempId);
-                    if (tempEl) {
-                        tempEl.querySelector('.status-check').innerHTML = '<span style="color: var(--danger);">⚠️</span>';
-                        tempEl.querySelector('.bubble-footer span:first-child').innerText = 'Failed to send voice note';
-                    }
-                    alert('Failed to send voice note: ' + (data.error || 'Unknown error'));
-                }
-            })
-            .catch(err => {
-                console.group('%c[VOICE SEND DEBUG] ❌ Voice Note Error', 'color: #ef4444; font-weight: bold; background: #450a0a; padding: 4px 8px; border-radius: 4px;');
-                console.error('Fetch Error:', err);
-                console.groupEnd();
-
-                window.keenDebugStore.logErr('send_voice_note', err);
-                alert('Error sending voice note: ' + err.message);
-            });
-    }
-
     // -------------------------------------------------------------
     // Send Action Router (Text or Media)
     // -------------------------------------------------------------
@@ -3301,45 +2999,7 @@ header('Content-Security-Policy: frame-ancestors *');
         document.getElementById('ai-modal').style.display = 'none';
     }
 
-    // -------------------------------------------------------------
-    // Diagnostics & Debug Modal Functions
-    // -------------------------------------------------------------
-    function openDebugModal() {
-        const modal = document.getElementById('debug-modal');
-        const textarea = document.getElementById('debug-textarea');
-        const status = document.getElementById('debug-copy-status');
-        if (status) status.innerText = '';
-        if (textarea) textarea.value = window.keenDebugStore.exportJson();
-        if (modal) modal.style.display = 'block';
-    }
 
-    function closeDebugModal() {
-        const modal = document.getElementById('debug-modal');
-        if (modal) modal.style.display = 'none';
-    }
-
-    function copyDebugJsonToClipboard() {
-        const textarea = document.getElementById('debug-textarea');
-        const status = document.getElementById('debug-copy-status');
-        const content = textarea ? textarea.value : window.keenDebugStore.exportJson();
-
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(content).then(() => {
-                if (status) status.innerText = '✓ Copied to clipboard! You can paste it into the chat.';
-            }).catch(() => {
-                fallbackCopy(textarea, status);
-            });
-        } else {
-            fallbackCopy(textarea, status);
-        }
-    }
-
-    function fallbackCopy(textarea, status) {
-        if (!textarea) return;
-        textarea.select();
-        document.execCommand('copy');
-        if (status) status.innerText = '✓ Copied to clipboard! You can paste it into the chat.';
-    }
 
     function formatMessageText(val) {
         if (val === null || val === undefined) return '';
