@@ -853,7 +853,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     try {
         $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
-        $dtMediaUrl = $dt->uploadMedia($targetPath, 'audio/opus', 'voice_note.opus');
+        $dtMediaUrl = $dt->uploadMedia($targetPath, 'audio/mp4', 'voice_note.mp4');
 
         $res = $dt->sendVoiceNote($phone, $dtMediaUrl, null, $waba);
         $msgId = $res['messageId'] ?? ($res['dtMessageId'] ?? ('voice_' . uniqid()));

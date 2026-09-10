@@ -560,8 +560,8 @@ class DoubleTickClient
                 $map = [
                     'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp',
                     'gif' => 'image/gif', 'mp4' => 'video/mp4', 'pdf' => 'application/pdf',
-                    'ogg' => 'audio/opus', 'oga' => 'audio/opus', 'opus' => 'audio/opus', 'mp3' => 'audio/mpeg',
-                    'webm' => 'audio/opus', 'wav' => 'audio/wav', 'm4a' => 'audio/mp4', 'aac' => 'audio/aac',
+                    'ogg' => 'audio/mp4', 'oga' => 'audio/mp4', 'opus' => 'audio/mp4', 'mp3' => 'audio/mpeg',
+                    'webm' => 'audio/mp4', 'wav' => 'audio/mp4', 'm4a' => 'audio/mp4', 'aac' => 'audio/aac',
                     'doc' => 'application/msword', 'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                     'xls' => 'application/vnd.ms-excel', 'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 ];
@@ -569,13 +569,19 @@ class DoubleTickClient
             }
         }
 
-        // DoubleTick /media/upload API rejects 'audio/ogg' and 'audio/webm', requiring 'audio/opus', 'audio/aac', 'audio/mpeg', or 'audio/mp4'
-        if ($mimeType === 'audio/ogg' || $mimeType === 'audio/webm' || str_contains($mimeType, 'ogg') || str_contains($mimeType, 'webm')) {
-            $mimeType = 'audio/opus';
+        // DoubleTick /media/upload API accepts standard audio MIME types: audio/mp4, audio/mpeg, audio/aac, audio/amr.
+        // It rejects audio/ogg, audio/webm, and audio/opus. Normalize any ogg/webm/opus/wav audio MIME types to audio/mp4.
+        if (in_array($mimeType, ['audio/ogg', 'audio/webm', 'audio/opus', 'audio/wav', 'audio/oga']) || str_contains((string)$mimeType, 'ogg') || str_contains((string)$mimeType, 'webm') || str_contains((string)$mimeType, 'opus')) {
+            $mimeType = 'audio/mp4';
         }
 
         if ($filename === null) {
             $filename = basename($filePath);
+        }
+
+        $extName = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        if (in_array($extName, ['ogg', 'opus', 'webm', 'wav', 'oga'])) {
+            $filename = pathinfo($filename, PATHINFO_FILENAME) . '.mp4';
         }
 
         $url = rtrim($this->baseUrl, '/') . '/media/upload';
