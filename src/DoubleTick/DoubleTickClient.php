@@ -560,13 +560,18 @@ class DoubleTickClient
                 $map = [
                     'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp',
                     'gif' => 'image/gif', 'mp4' => 'video/mp4', 'pdf' => 'application/pdf',
-                    'ogg' => 'audio/ogg', 'oga' => 'audio/ogg', 'opus' => 'audio/ogg', 'mp3' => 'audio/mpeg',
-                    'webm' => 'audio/webm', 'wav' => 'audio/wav', 'm4a' => 'audio/mp4',
+                    'ogg' => 'audio/opus', 'oga' => 'audio/opus', 'opus' => 'audio/opus', 'mp3' => 'audio/mpeg',
+                    'webm' => 'audio/opus', 'wav' => 'audio/wav', 'm4a' => 'audio/mp4', 'aac' => 'audio/aac',
                     'doc' => 'application/msword', 'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                     'xls' => 'application/vnd.ms-excel', 'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 ];
                 $mimeType = $map[$ext] ?? 'application/octet-stream';
             }
+        }
+
+        // DoubleTick /media/upload API rejects 'audio/ogg' and 'audio/webm', requiring 'audio/opus', 'audio/aac', 'audio/mpeg', or 'audio/mp4'
+        if ($mimeType === 'audio/ogg' || $mimeType === 'audio/webm' || str_contains($mimeType, 'ogg') || str_contains($mimeType, 'webm')) {
+            $mimeType = 'audio/opus';
         }
 
         if ($filename === null) {
