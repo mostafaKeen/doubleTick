@@ -24,6 +24,14 @@ use DoubleTickB24\DoubleTick\DoubleTickClient;
 
 $config = require dirname(__DIR__) . '/config/config.php';
 
+// Strict anti-cache headers to guarantee fresh data every time the widget opens
+header_remove('X-Frame-Options');
+header('Content-Security-Policy: frame-ancestors *');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0');
+header('Pragma: no-cache');
+header('Expires: Sat, 26 Jul 1997 05:00:00 GMT');
+
+
 /**
  * Safely extract text, media URL, and media type from any DoubleTick/WhatsApp message structure.
  * Guaranteed to NEVER return the literal string "Array" or "[object Object]".
@@ -762,6 +770,9 @@ header('Content-Security-Policy: frame-ancestors *');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>KEEN DoubleTick</title>
     <script src="//api.bitrix24.com/api/v1/"></script>
     <style>
@@ -1575,24 +1586,44 @@ header('Content-Security-Policy: frame-ancestors *');
             }
         });
 
-        // Initial fetch
-        loadChatHistory(false);
+        // Initial fetch with forced cache bypass
+        lastRenderedCount = 0;
+        loadChatHistory(true);
 
         // Start background polling every 5 seconds
         if (pollInterval) clearInterval(pollInterval);
         pollInterval = setInterval(function() {
             loadChatHistory(false);
         }, 5000);
+
+        // Auto-refresh when tab is refocused or becomes visible
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') {
+                lastRenderedCount = 0;
+                loadChatHistory(true);
+            }
+        });
+        window.addEventListener('focus', function() {
+            lastRenderedCount = 0;
+            loadChatHistory(true);
+        });
     }
 
     function loadChatHistory(forceScroll) {
         if (!currentPhone) return;
 
         const currentDomain = (window.keenDebugStore && window.keenDebugStore.crmInfo && window.keenDebugStore.crmInfo.domain) ? window.keenDebugStore.crmInfo.domain : '';
-        const url = 'placement_tab.php?action=get_chat_history&phone=' + encodeURIComponent(currentPhone) + '&member_id=' + encodeURIComponent(currentMemberId) + '&domain=' + encodeURIComponent(currentDomain);
+        const nocache = Date.now();
+        const url = 'placement_tab.php?action=get_chat_history&phone=' + encodeURIComponent(currentPhone) + '&member_id=' + encodeURIComponent(currentMemberId) + '&domain=' + encodeURIComponent(currentDomain) + '&_t=' + nocache;
         window.keenDebugStore.logReq('get_chat_history', { url, phone: currentPhone, memberId: currentMemberId, domain: currentDomain });
 
-        fetch(url)
+        fetch(url, {
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
+            }
+        })
             .then(res => res.json())
             .then(data => {
                 window.keenDebugStore.lastChatHistoryResponse = data;
@@ -1827,10 +1858,16 @@ header('Content-Security-Policy: frame-ancestors *');
 
         if (!crmTemplatesLoaded) {
             const currentDomain = (window.keenDebugStore && window.keenDebugStore.crmInfo && window.keenDebugStore.crmInfo.domain) ? window.keenDebugStore.crmInfo.domain : '';
-            const tplUrl = 'placement_tab.php?action=get_templates&member_id=' + encodeURIComponent(currentMemberId) + '&domain=' + encodeURIComponent(currentDomain);
+            const tplUrl = 'placement_tab.php?action=get_templates&member_id=' + encodeURIComponent(currentMemberId) + '&domain=' + encodeURIComponent(currentDomain) + '&_t=' + Date.now();
             window.keenDebugStore.logReq('get_templates', { url: tplUrl, memberId: currentMemberId, domain: currentDomain });
 
-            fetch(tplUrl)
+            fetch(tplUrl, {
+                cache: 'no-store',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                }
+            })
                 .then(res => res.json())
                 .then(data => {
                     window.keenDebugStore.logRes('get_templates', data);
@@ -1953,10 +1990,17 @@ header('Content-Security-Policy: frame-ancestors *');
         document.getElementById('ai-modal').style.display = 'block';
         document.getElementById('ai-content').innerHTML = '<em>Generating AI summary from WhatsApp history...</em>';
 
-        const aiUrl = 'placement_tab.php?action=get_ai_summary&phone=' + encodeURIComponent(currentPhone) + '&member_id=' + encodeURIComponent(currentMemberId);
-        window.keenDebugStore.logReq('get_ai_summary', { url: aiUrl, phone: currentPhone, memberId: currentMemberId });
+        const currentDomain = (window.keenDebugStore && window.keenDebugStore.crmInfo && window.keenDebugStore.crmInfo.domain) ? window.keenDebugStore.crmInfo.domain : '';
+        const aiUrl = 'placement_tab.php?action=get_ai_summary&phone=' + encodeURIComponent(currentPhone) + '&member_id=' + encodeURIComponent(currentMemberId) + '&domain=' + encodeURIComponent(currentDomain) + '&_t=' + Date.now();
+        window.keenDebugStore.logReq('get_ai_summary', { url: aiUrl, phone: currentPhone, memberId: currentMemberId, domain: currentDomain });
 
-        fetch(aiUrl)
+        fetch(aiUrl, {
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
+            }
+        })
             .then(res => res.json())
             .then(data => {
                 window.keenDebugStore.logRes('get_ai_summary', data);
