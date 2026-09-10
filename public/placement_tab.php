@@ -854,12 +854,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     try {
         $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
 
-        // Upload recorded audio file to DoubleTick as document to ensure DoubleTick API accepts it
-        $dtMediaUrl = $dt->uploadMedia($targetPath, 'application/octet-stream', 'voice_note.ogg');
+        // Upload recorded audio file to DoubleTick (uploadMedia normalizes ogg/webm/opus to audio/mp4)
+        $dtMediaUrl = $dt->uploadMedia($targetPath, 'audio/mp4', 'voice_note.mp4');
 
         $durStr = $duration > 0 ? sprintf('%02d:%02d', floor($duration / 60), $duration % 60) : '';
         $caption = "🎙️ Voice Note" . ($durStr ? " ({$durStr})" : "");
-        $res = $dt->sendMediaMessage('document', $phone, $dtMediaUrl, $caption, 'voice_note.ogg', $waba);
+        $res = $dt->sendMediaMessage('audio', $phone, $dtMediaUrl, null, null, $waba);
         $msgId = $res['messageId'] ?? ($res['dtMessageId'] ?? ('voice_' . uniqid()));
 
         $appUrl = rtrim($config['app']['url'], '/');
@@ -874,7 +874,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     customer_phone, direction, message_type, status, raw_data, created_at
                 ) VALUES (
                     :portal_id, 0, 0, :dt_id, NULL,
-                    :phone, 'OUTBOUND', 'document', 'sent', :raw_data, datetime('now')
+                    :phone, 'OUTBOUND', 'audio', 'sent', :raw_data, datetime('now')
                 )
             ");
             $stmt->execute([
@@ -885,7 +885,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     'text' => $caption,
                     'media_url' => $proxyUrl,
                     'dt_url' => $dtMediaUrl,
-                    'media_type' => 'document',
+                    'media_type' => 'audio',
                     'is_voice_note' => true,
                     'file_name' => 'voice_note.ogg',
                     'duration' => $duration,
