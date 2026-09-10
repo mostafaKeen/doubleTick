@@ -853,13 +853,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     try {
         $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
-        $dtMediaUrl = $dt->uploadMedia($targetPath, 'audio/mp4', 'voice_note.mp4');
 
-        $res = $dt->sendVoiceNote($phone, $dtMediaUrl, null, $waba);
+        // Voice notes recorded by browsers are in OGG/WebM Opus format.
+        // DoubleTick's /media/upload rejects audio/ogg & audio/webm MIME types,
+        // but WhatsApp Cloud API natively supports audio/ogg;codecs=opus.
+        // Solution: serve the file from our own publicly-accessible media_proxy.php
+        // and pass that URL directly to DoubleTick's send audio endpoint.
+        $appUrl = rtrim($config['app']['url'], '/');
+        $publicAudioUrl = $appUrl . '/media_proxy.php?file=' . urlencode($savedName) . '&name=voice_note.ogg';
+
+        $res = $dt->sendVoiceNote($phone, $publicAudioUrl, null, $waba);
         $msgId = $res['messageId'] ?? ($res['dtMessageId'] ?? ('voice_' . uniqid()));
 
-        $appUrl = rtrim($config['app']['url'], '/');
-        $proxyUrl = $appUrl . '/media_proxy.php?file=' . urlencode($savedName) . '&name=voice_note.ogg';
+        $proxyUrl = $publicAudioUrl;
 
         // Save to database
         try {
@@ -880,7 +886,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 'raw_data' => json_encode([
                     'text' => '',
                     'media_url' => $proxyUrl,
-                    'dt_url' => $dtMediaUrl,
+                    'dt_url' => $publicAudioUrl,
                     'media_type' => 'audio',
                     'is_voice_note' => true,
                     'file_name' => 'voice_note.ogg',
