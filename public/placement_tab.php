@@ -2145,6 +2145,9 @@ header('Content-Security-Policy: frame-ancestors *');
             this.requests.push(entry);
             if (this.requests.length > 100) this.requests.shift();
 
+            // Do not spam console with periodic history polling
+            if (action && action.includes('get_chat_history')) return;
+
             console.groupCollapsed('%c[KEEN DoubleTick] 🚀 REQUEST: ' + action, 'color: #38bdf8; font-weight: bold; background: #0f172a; padding: 2px 6px; border-radius: 4px;');
             console.log('Action:', action);
             console.log('Payload / Params:', details);
@@ -2164,6 +2167,9 @@ header('Content-Security-Policy: frame-ancestors *');
             this.requests.push(entry);
             if (this.requests.length > 100) this.requests.shift();
 
+            // Do not spam console with periodic history polling
+            if (action && action.includes('get_chat_history')) return;
+
             const badgeColor = ok ? '#4ade80' : '#f87171';
             console.groupCollapsed('%c[KEEN DoubleTick] 📦 RESPONSE: ' + action + ' [' + (ok ? 'SUCCESS' : 'FAILED') + ']', 'color: ' + badgeColor + '; font-weight: bold; background: #0f172a; padding: 2px 6px; border-radius: 4px;');
             console.log('Action:', action);
@@ -2175,13 +2181,6 @@ header('Content-Security-Policy: frame-ancestors *');
             }
             if (data && data.raw_dt_response) {
                 console.log('Raw DoubleTick API response:', data.raw_dt_response);
-            }
-            if (data && data.messages && action.includes('chat_history')) {
-                data.messages.forEach(function(msg, idx) {
-                    if (msg._extraction_debug) {
-                        console.log('%c[MSG #' + idx + '] Extraction Debug:', 'color: #fbbf24; font-weight: bold;', msg._extraction_debug);
-                    }
-                });
             }
             if (data && data.error) {
                 console.warn('Error detail:', data.error);
@@ -2198,6 +2197,8 @@ header('Content-Security-Policy: frame-ancestors *');
             };
             this.requests.push(entry);
             if (this.requests.length > 100) this.requests.shift();
+
+            if (action && action.includes('get_chat_history')) return;
 
             console.group('%c[KEEN DoubleTick] ❌ ERROR: ' + action, 'color: #ef4444; font-weight: bold;');
             console.error('Error Details:', err);
@@ -2686,7 +2687,8 @@ header('Content-Security-Policy: frame-ancestors *');
     }
 
     function formatDuration(sec) {
-        sec = Math.floor(sec) || 0;
+        if (!sec || isNaN(sec) || !isFinite(sec) || sec < 0) return '0:00';
+        sec = Math.floor(sec);
         const m = Math.floor(sec / 60);
         const s = sec % 60;
         return m + ':' + (s < 10 ? '0' : '') + s;
@@ -2891,6 +2893,15 @@ header('Content-Security-Policy: frame-ancestors *');
         const tempId = 'temp_voice_' + Date.now();
         const container = document.getElementById('chat-messages');
 
+        console.group('%c[VOICE SEND DEBUG] 🎙️ Sending Voice Note', 'color: #a855f7; font-weight: bold; background: #1e1b4b; padding: 4px 8px; border-radius: 4px;');
+        console.log('Target Phone:', currentPhone);
+        console.log('Duration:', duration, 'seconds (Formatted:', formatDuration(duration) + ')');
+        console.log('Recorded Blob Size:', blob.size, 'bytes');
+        console.log('Recorded MIME Type:', blob.type);
+        console.log('Member ID:', currentMemberId);
+        console.log('Domain:', currentDomain);
+        console.groupEnd();
+
         const optimisticHtml = `
             <div class="message-row outbound" id="${tempId}">
                 <div class="bubble">
@@ -2921,6 +2932,11 @@ header('Content-Security-Policy: frame-ancestors *');
         fetch('placement_tab.php', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
+                console.group('%c[VOICE SEND DEBUG] 📥 Voice Note Response', data.success ? 'color: #22c55e; font-weight: bold; background: #052e16; padding: 4px 8px; border-radius: 4px;' : 'color: #ef4444; font-weight: bold; background: #450a0a; padding: 4px 8px; border-radius: 4px;');
+                console.log('Success:', data.success);
+                console.log('Response Payload:', data);
+                console.groupEnd();
+
                 window.keenDebugStore.logRes('send_voice_note', data);
                 if (data.success) {
                     loadChatHistory(true);
@@ -2934,6 +2950,10 @@ header('Content-Security-Policy: frame-ancestors *');
                 }
             })
             .catch(err => {
+                console.group('%c[VOICE SEND DEBUG] ❌ Voice Note Error', 'color: #ef4444; font-weight: bold; background: #450a0a; padding: 4px 8px; border-radius: 4px;');
+                console.error('Fetch Error:', err);
+                console.groupEnd();
+
                 window.keenDebugStore.logErr('send_voice_note', err);
                 alert('Error sending voice note: ' + err.message);
             });
