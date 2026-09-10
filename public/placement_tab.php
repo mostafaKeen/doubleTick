@@ -854,18 +854,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     try {
         $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
 
-        // Voice notes recorded by browsers are in OGG/WebM Opus format.
-        // DoubleTick's /media/upload rejects audio/ogg & audio/webm MIME types,
-        // but WhatsApp Cloud API natively supports audio/ogg;codecs=opus.
-        // Solution: serve the file from our own publicly-accessible media_proxy.php
-        // and pass that URL directly to DoubleTick's send audio endpoint.
-        $appUrl = rtrim($config['app']['url'], '/');
-        $publicAudioUrl = $appUrl . '/media_proxy.php?file=' . urlencode($savedName) . '&name=voice_note.ogg';
+        // Upload recorded audio file to DoubleTick as document to ensure DoubleTick API accepts it
+        $dtMediaUrl = $dt->uploadMedia($targetPath, 'application/octet-stream', 'voice_note.ogg');
 
-        $res = $dt->sendVoiceNote($phone, $publicAudioUrl, null, $waba);
+        $durStr = $duration > 0 ? sprintf('%02d:%02d', floor($duration / 60), $duration % 60) : '';
+        $caption = "🎙️ Voice Note" . ($durStr ? " ({$durStr})" : "");
+        $res = $dt->sendMediaMessage('document', $phone, $dtMediaUrl, $caption, 'voice_note.ogg', $waba);
         $msgId = $res['messageId'] ?? ($res['dtMessageId'] ?? ('voice_' . uniqid()));
 
-        $proxyUrl = $publicAudioUrl;
+        $appUrl = rtrim($config['app']['url'], '/');
+        $proxyUrl = $appUrl . '/media_proxy.php?file=' . urlencode($savedName) . '&name=voice_note.ogg';
 
         // Save to database
         try {
@@ -876,7 +874,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     customer_phone, direction, message_type, status, raw_data, created_at
                 ) VALUES (
                     :portal_id, 0, 0, :dt_id, NULL,
-                    :phone, 'OUTBOUND', 'audio', 'sent', :raw_data, datetime('now')
+                    :phone, 'OUTBOUND', 'document', 'sent', :raw_data, datetime('now')
                 )
             ");
             $stmt->execute([
@@ -884,10 +882,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 'dt_id' => $msgId,
                 'phone' => preg_replace('/[^0-9]/', '', $phone),
                 'raw_data' => json_encode([
-                    'text' => '',
+                    'text' => $caption,
                     'media_url' => $proxyUrl,
-                    'dt_url' => $publicAudioUrl,
-                    'media_type' => 'audio',
+                    'dt_url' => $dtMediaUrl,
+                    'media_type' => 'document',
                     'is_voice_note' => true,
                     'file_name' => 'voice_note.ogg',
                     'duration' => $duration,
@@ -902,7 +900,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'success' => true,
             'message_id' => $msgId,
             'media_url' => $proxyUrl,
-            'media_type' => 'audio',
+            'media_type' => 'document',
             'is_voice_note' => true,
             'duration' => $duration,
             'time_str' => date('h:i A'),
