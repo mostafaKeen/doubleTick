@@ -30,7 +30,8 @@ $defaultUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'off' ? 'http' 
 if (isset($_SERVER['SCRIPT_NAME'])) {
     $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
     if ($scriptDir && $scriptDir !== '/' && $scriptDir !== '\\' && $scriptDir !== '.') {
-        $defaultUrl .= str_replace('\\', '/', $scriptDir);
+        $cleanDir = '/' . trim(str_replace('\\', '/', $scriptDir), '/');
+        $defaultUrl .= $cleanDir;
     }
 }
 

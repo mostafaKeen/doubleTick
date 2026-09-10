@@ -15,14 +15,26 @@ use PDO;
 class WebhookProcessor
 {
     private BitrixClient $b24;
+    private ?DoubleTickClient $dt = null;
     private ImConnectorService $imConnector;
     private CrmLeadService $crmLead;
 
-    public function __construct(BitrixClient $b24)
+    public function __construct(BitrixClient $b24, ?DoubleTickClient $dt = null)
     {
         $this->b24 = $b24;
         $this->imConnector = new ImConnectorService($b24);
         $this->crmLead = new CrmLeadService($b24);
+
+        if ($dt !== null) {
+            $this->dt = $dt;
+        } else {
+            $config = require dirname(__DIR__, 2) . '/config/config.php';
+            $apiKey = $b24->getDoubleTickApiKey() ?: ($config['doubletick']['api_key'] ?? '');
+            $waba = $b24->getDoubleTickWaba() ?: ($config['doubletick']['default_waba'] ?? null);
+            if (!empty($apiKey)) {
+                $this->dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url'] ?? 'https://api.doubletick.io');
+            }
+        }
     }
 
     /**
@@ -105,15 +117,62 @@ class WebhookProcessor
         } elseif (in_array($type, ['IMAGE', 'VIDEO', 'AUDIO', 'DOCUMENT'])) {
             $mediaUrl = (string)($messageObj['url'] ?? '');
             $caption = is_array($messageObj['caption'] ?? null) ? ($messageObj['caption']['body'] ?? '') : (string)($messageObj['caption'] ?? '');
-            $filename = (string)($messageObj['filename'] ?? (strtolower($type) . '_file'));
+            $filename = (string)($messageObj['fileName'] ?? $messageObj['filename'] ?? (strtolower($type) . '_file'));
 
             if ($caption !== '' && $caption !== 'Array') {
                 $text = $caption;
             }
+
             if ($mediaUrl !== '') {
+                // Determine file extension
+                $urlPath = parse_url($mediaUrl, PHP_URL_PATH) ?? '';
+                $ext = strtolower(pathinfo($urlPath, PATHINFO_EXTENSION));
+                if (!$ext) {
+                    $ext = match(strtolower($type)) {
+                        'audio' => 'ogg',
+                        'image' => 'jpg',
+                        'video' => 'mp4',
+                        'document' => 'pdf',
+                        default => 'bin'
+                    };
+                }
+
+                // If filename has no extension, append it
+                if (!pathinfo($filename, PATHINFO_EXTENSION)) {
+                    $filename .= '.' . $ext;
+                }
+
+                // Cache file locally in storage/media
+                $cacheName = md5($mediaUrl) . '.' . $ext;
+                $cacheDir = dirname(__DIR__, 2) . '/storage/media';
+                if (!is_dir($cacheDir)) {
+                    @mkdir($cacheDir, 0777, true);
+                }
+                $cachePath = $cacheDir . '/' . $cacheName;
+
+                if (!file_exists($cachePath) || filesize($cachePath) === 0) {
+                    if ($this->dt !== null) {
+                        try {
+                            $dl = $this->dt->downloadMedia($mediaUrl);
+                            if ($dl['success'] && !empty($dl['content'])) {
+                                file_put_contents($cachePath, $dl['content']);
+                            }
+                        } catch (\Throwable $dlEx) {
+                            Logger::warning("Could not pre-cache inbound media: " . $dlEx->getMessage());
+                        }
+                    }
+                }
+
+                // Build accessible proxy URL
+                $config = require dirname(__DIR__, 2) . '/config/config.php';
+                $appUrl = rtrim($config['app']['url'], '/');
+                $proxyUrl = $appUrl . '/media_proxy.php?file=' . urlencode($cacheName) . '&name=' . urlencode($filename);
+
                 $files[] = [
-                    'url' => $mediaUrl,
+                    'url' => $proxyUrl,
+                    'dt_url' => $mediaUrl,
                     'name' => $filename,
+                    'type' => strtolower($type),
                 ];
             }
         } elseif ($type === 'LOCATION') {
@@ -134,6 +193,9 @@ class WebhookProcessor
             $check = $db->prepare("SELECT id FROM message_mappings WHERE dt_message_id = :id LIMIT 1");
             $check->execute(['id' => $dtMessageId]);
             if (!$check->fetch()) {
+                $primaryFile = !empty($files[0]) ? $files[0] : null;
+                $savedMediaType = empty($files) ? 'text' : strtolower($type);
+
                 $ins = $db->prepare("
                     INSERT INTO message_mappings (
                         portal_id, b24_chat_id, b24_message_id, dt_message_id, whatsapp_message_id,
@@ -148,10 +210,14 @@ class WebhookProcessor
                     'dt_id' => $dtMessageId,
                     'wa_id' => $whatsappMessageId,
                     'phone' => $cleanPhone,
-                    'type' => empty($files) ? 'text' : 'media',
+                    'type' => $savedMediaType,
                     'raw_data' => json_encode([
                         'text' => $text,
                         'files' => $files,
+                        'media_url' => $primaryFile ? $primaryFile['url'] : null,
+                        'dt_url' => $primaryFile ? $primaryFile['dt_url'] : null,
+                        'media_type' => $savedMediaType,
+                        'file_name' => $primaryFile ? $primaryFile['name'] : null,
                         'sender_name' => $customerName,
                         'time' => date('Y-m-d H:i:s'),
                     ]),

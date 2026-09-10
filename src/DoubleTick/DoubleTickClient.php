@@ -122,6 +122,14 @@ class DoubleTickClient
     }
 
     /**
+     * Send voice note / audio message
+     */
+    public function sendVoiceNote(string $to, string $mediaUrl, ?string $caption = null, ?string $from = null): array
+    {
+        return $this->sendMediaMessage('audio', $to, $mediaUrl, $caption, null, $from);
+    }
+
+    /**
      * Send interactive button message
      */
     public function sendInteractiveButtons(
@@ -499,32 +507,7 @@ class DoubleTickClient
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
-        // Handle SSL CA certificate configuration across Windows & Unix environments
-        if (ini_get('curl.cainfo')) {
-            // Standard php.ini CA bundle configured
-        } else {
-            $caPaths = [
-                'C:/php/extras/ssl/cacert.pem',
-                'C:/php/cacert.pem',
-                'C:/tools/php/cacert.pem',
-                '/etc/ssl/certs/ca-certificates.crt',
-                '/etc/pki/tls/certs/ca-bundle.crt',
-            ];
-            $foundCa = null;
-            foreach ($caPaths as $path) {
-                if (file_exists($path)) {
-                    $foundCa = $path;
-                    break;
-                }
-            }
-            if ($foundCa) {
-                curl_setopt($ch, CURLOPT_CAINFO, $foundCa);
-            } elseif (getenv('APP_ENV') === 'local' || (defined('PHP_OS_FAMILY') && PHP_OS_FAMILY === 'Windows')) {
-                // Prevent fatal crash in environments lacking local CA bundles
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-            }
-        }
+        $this->applySslOptions($ch);
 
         if ($body !== null && in_array($method, ['POST', 'PUT', 'PATCH'])) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body, JSON_UNESCAPED_UNICODE));
@@ -556,5 +539,154 @@ class DoubleTickClient
         }
 
         return is_array($decoded) ? $decoded : ['success' => true, 'data' => $response];
+    }
+
+    /**
+     * Upload a local media file to DoubleTick Cloud (POST /media/upload)
+     * Returns the publicly accessible DoubleTick mediaUrl.
+     */
+    public function uploadMedia(string $filePath, ?string $mimeType = null, ?string $filename = null): string
+    {
+        if (!file_exists($filePath)) {
+            throw new Exception("File not found for media upload: {$filePath}");
+        }
+
+        if ($mimeType === null) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mimeType = $finfo ? finfo_file($finfo, $filePath) : null;
+            if ($finfo) finfo_close($finfo);
+            if (!$mimeType) {
+                $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+                $map = [
+                    'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp',
+                    'gif' => 'image/gif', 'mp4' => 'video/mp4', 'pdf' => 'application/pdf',
+                    'ogg' => 'audio/ogg', 'oga' => 'audio/ogg', 'opus' => 'audio/ogg', 'mp3' => 'audio/mpeg',
+                    'webm' => 'audio/webm', 'wav' => 'audio/wav', 'm4a' => 'audio/mp4',
+                    'doc' => 'application/msword', 'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'xls' => 'application/vnd.ms-excel', 'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ];
+                $mimeType = $map[$ext] ?? 'application/octet-stream';
+            }
+        }
+
+        if ($filename === null) {
+            $filename = basename($filePath);
+        }
+
+        $url = rtrim($this->baseUrl, '/') . '/media/upload';
+        $ch = curl_init();
+        $cfile = new \CURLFile($filePath, $mimeType, $filename);
+
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, ['file' => $cfile]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: ' . $this->apiKey,
+            'Accept: application/json',
+        ]);
+
+        $this->applySslOptions($ch);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            Logger::error("DoubleTick media upload cURL error: {$curlError}");
+            throw new Exception("Media upload failed: {$curlError}");
+        }
+
+        $decoded = json_decode((string)$response, true);
+        if ($httpCode >= 400 || empty($decoded['mediaUrl'])) {
+            $err = $decoded['message'] ?? $decoded['error'] ?? "HTTP {$httpCode}";
+            Logger::error("DoubleTick media upload rejected: {$err}", ['response' => $response]);
+            throw new Exception("DoubleTick upload error ({$httpCode}): " . (is_array($err) ? json_encode($err) : $err));
+        }
+
+        Logger::info("Media successfully uploaded to DoubleTick", ['mediaUrl' => $decoded['mediaUrl'], 'expiresIn' => $decoded['expiresIn'] ?? null]);
+        return (string)$decoded['mediaUrl'];
+    }
+
+    /**
+     * Download media from DoubleTick CDN (attaching Authorization header if needed)
+     */
+    public function downloadMedia(string $remoteUrl): array
+    {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $remoteUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 45);
+
+        $headers = [];
+        if (stripos($remoteUrl, 'doubletick.io') !== false) {
+            $headers[] = 'Authorization: ' . $this->apiKey;
+        }
+        if (!empty($headers)) {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        }
+
+        $this->applySslOptions($ch);
+
+        $content = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            Logger::error("Failed to download media: {$curlError}", ['url' => $remoteUrl]);
+            return [
+                'success' => false,
+                'error' => $curlError,
+                'status_code' => 0,
+                'content' => '',
+                'mime_type' => '',
+                'size' => 0,
+            ];
+        }
+
+        return [
+            'success' => ($httpCode >= 200 && $httpCode < 300),
+            'status_code' => $httpCode,
+            'content' => (string)$content,
+            'mime_type' => (string)$contentType,
+            'size' => strlen((string)$content),
+        ];
+    }
+
+    /**
+     * Centralized SSL CA options helper
+     */
+    private function applySslOptions($ch): void
+    {
+        if (ini_get('curl.cainfo')) {
+            return;
+        }
+
+        $caPaths = [
+            'C:/php/extras/ssl/cacert.pem',
+            'C:/php/cacert.pem',
+            'C:/tools/php/cacert.pem',
+            '/etc/ssl/certs/ca-certificates.crt',
+            '/etc/pki/tls/certs/ca-bundle.crt',
+        ];
+        $foundCa = null;
+        foreach ($caPaths as $path) {
+            if (file_exists($path)) {
+                $foundCa = $path;
+                break;
+            }
+        }
+
+        if ($foundCa) {
+            curl_setopt($ch, CURLOPT_CAINFO, $foundCa);
+        } elseif (getenv('APP_ENV') === 'local' || (defined('PHP_OS_FAMILY') && PHP_OS_FAMILY === 'Windows')) {
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        }
     }
 }

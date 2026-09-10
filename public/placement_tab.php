@@ -348,18 +348,47 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
             }
 
             $isTemplate = !empty($m['templateId']);
+            $proxyMediaUrl = $mediaUrl;
+            if ($mediaUrl && stripos($mediaUrl, 'doubletick.io') !== false) {
+                $proxyMediaUrl = 'media_proxy.php?url=' . urlencode($mediaUrl) . '&member_id=' . urlencode($memberId) . '&domain=' . urlencode($domain);
+            }
+
+            $mType = 'text';
+            $ext = '';
+            if ($isTemplate) {
+                $mType = 'template';
+            } elseif ($mediaUrl) {
+                $urlPath = parse_url($mediaUrl, PHP_URL_PATH) ?? '';
+                $ext = strtolower(pathinfo($urlPath, PATHINFO_EXTENSION));
+                $mType = match ($ext) {
+                    'ogg', 'oga', 'opus', 'mp3', 'wav', 'webm', 'm4a' => 'audio',
+                    'jpg', 'jpeg', 'png', 'webp', 'gif' => 'image',
+                    'mp4', 'mov', 'avi' => 'video',
+                    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt' => 'document',
+                    default => ($content['media_type'] ?? 'media')
+                };
+            }
+
+            $isVoiceNote = ($mType === 'audio' && (str_contains($mediaUrl, 'voice') || in_array($ext, ['ogg', 'opus', 'webm']) || ($content['media_type'] ?? '') === 'voice'));
+            $fileName = (string)($m['message']['fileName'] ?? $m['message']['filename'] ?? $m['fileName'] ?? $m['filename'] ?? '');
+            if (!$fileName && $mediaUrl) {
+                $fileName = basename(parse_url($mediaUrl, PHP_URL_PATH) ?? '') ?: ($mType . '_attachment');
+            }
 
             $seenIds[$msgId] = true;
             $messages[] = [
                 'id' => $msgId,
                 'direction' => $isOutbound ? 'OUTBOUND' : 'INBOUND',
                 'text' => $text,
-                'media_url' => $mediaUrl,
+                'media_url' => $proxyMediaUrl,
+                'original_media_url' => $mediaUrl,
+                'file_name' => $fileName,
                 'timestamp' => $ts,
                 'time_str' => date('h:i A', $ts),
                 'date_str' => date('M j, Y', $ts),
                 'status' => $status,
-                'type' => $isTemplate ? 'template' : ($mediaUrl ? 'media' : 'text'),
+                'type' => $mType,
+                'is_voice_note' => $isVoiceNote,
                 'raw_message' => $m,
                 '_extraction_debug' => $extractionDebug,
             ];
@@ -475,16 +504,60 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
             }
 
             $ts = !empty($row['created_at']) ? strtotime($row['created_at']) : time();
+            $proxyMediaUrl = $mediaUrl;
+            $fileName = null;
+            $isVoiceNote = false;
+            $mType = (string)($row['message_type'] ?? 'text');
+
+            if (!empty($row['raw_data'])) {
+                $rawDecoded = json_decode((string)$row['raw_data'], true);
+                if (is_array($rawDecoded)) {
+                    if (!empty($rawDecoded['media_url'])) {
+                        $proxyMediaUrl = $rawDecoded['media_url'];
+                    }
+                    if (!empty($rawDecoded['file_name'])) {
+                        $fileName = $rawDecoded['file_name'];
+                    }
+                    if (!empty($rawDecoded['media_type'])) {
+                        $mType = $rawDecoded['media_type'];
+                    }
+                    if (!empty($rawDecoded['is_voice_note'])) {
+                        $isVoiceNote = (bool)$rawDecoded['is_voice_note'];
+                    }
+                }
+            }
+
+            if ($proxyMediaUrl && stripos($proxyMediaUrl, 'doubletick.io') !== false) {
+                $proxyMediaUrl = 'media_proxy.php?url=' . urlencode($proxyMediaUrl) . '&member_id=' . urlencode($memberId) . '&domain=' . urlencode($domain);
+            }
+
+            if ($proxyMediaUrl && ($mType === 'text' || $mType === 'media')) {
+                $ext = strtolower(pathinfo(parse_url($proxyMediaUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
+                $mType = match ($ext) {
+                    'ogg', 'oga', 'opus', 'mp3', 'wav', 'webm', 'm4a' => 'audio',
+                    'jpg', 'jpeg', 'png', 'webp', 'gif' => 'image',
+                    'mp4', 'mov', 'avi' => 'video',
+                    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt' => 'document',
+                    default => 'media'
+                };
+            }
+            if ($mType === 'audio') {
+                $isVoiceNote = true;
+            }
+
             $messages[] = [
                 'id' => $dtId ?: ('local_' . $row['id']),
                 'direction' => strtoupper((string)($row['direction'] ?? 'OUTBOUND')),
                 'text' => $text,
-                'media_url' => $mediaUrl,
+                'media_url' => $proxyMediaUrl,
+                'original_media_url' => $mediaUrl,
+                'file_name' => $fileName,
                 'timestamp' => $ts,
                 'time_str' => date('h:i A', $ts),
                 'date_str' => date('M j, Y', $ts),
                 'status' => strtolower((string)($row['status'] ?? 'sent')),
-                'type' => (string)($row['message_type'] ?? 'text'),
+                'type' => $mType,
+                'is_voice_note' => $isVoiceNote,
                 'raw_message' => $row,
             ];
         }
@@ -611,6 +684,231 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'error' => $msg,
             'window_closed' => $isClosed,
             'raw_error' => $e->getTraceAsString(),
+        ]);
+    }
+    exit;
+}
+
+// -------------------------------------------------------------
+// AJAX Action: Send WhatsApp Media Message (Image, Document, Video, Audio)
+// -------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send_media') {
+    header('Content-Type: application/json');
+    $phone = trim((string)($_POST['phone'] ?? ''));
+    $caption = trim((string)($_POST['caption'] ?? ''));
+    $memberId = (string)($_POST['member_id'] ?? '');
+    $domain = (string)($_POST['domain'] ?? '');
+
+    $b24 = null;
+    if ($memberId) $b24 = BitrixClient::getByMemberId($memberId);
+    if (!$b24 && $domain) $b24 = BitrixClient::getByDomain($domain);
+    if (!$b24) $b24 = BitrixClient::getFirstActive();
+    $apiKey = $b24 ? $b24->getDoubleTickApiKey() : $config['doubletick']['api_key'];
+    $waba = $b24 ? $b24->getDoubleTickWaba() : $config['doubletick']['default_waba'];
+
+    if (!$apiKey || !$phone) {
+        echo json_encode(['success' => false, 'error' => 'API Key and phone number are required.']);
+        exit;
+    }
+
+    if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        $errCode = $_FILES['file']['error'] ?? 'no_file';
+        echo json_encode(['success' => false, 'error' => "File upload error ({$errCode})."]);
+        exit;
+    }
+
+    $file = $_FILES['file'];
+    $maxSize = 16 * 1024 * 1024; // 16MB DoubleTick limit
+    if ($file['size'] > $maxSize) {
+        echo json_encode(['success' => false, 'error' => 'File size exceeds maximum allowed limit of 16 MB.']);
+        exit;
+    }
+
+    $origName = basename((string)$file['name']);
+    $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+    $mediaDir = dirname(__DIR__) . '/storage/media';
+    if (!is_dir($mediaDir)) @mkdir($mediaDir, 0777, true);
+
+    $savedName = 'out_' . uniqid() . '_' . preg_replace('/[^a-zA-Z0-9_\.-]/', '_', $origName);
+    $targetPath = $mediaDir . '/' . $savedName;
+
+    if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+        echo json_encode(['success' => false, 'error' => 'Failed to store file on server.']);
+        exit;
+    }
+
+    $mediaType = match ($ext) {
+        'jpg', 'jpeg', 'png', 'webp', 'gif' => 'image',
+        'mp4', 'mov', 'avi' => 'video',
+        'ogg', 'opus', 'mp3', 'wav', 'webm', 'm4a' => 'audio',
+        default => 'document'
+    };
+
+    try {
+        $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
+        $dtMediaUrl = $dt->uploadMedia($targetPath, null, $origName);
+
+        $res = $dt->sendMediaMessage($mediaType, $phone, $dtMediaUrl, $caption !== '' ? $caption : null, $origName, $waba);
+        $msgId = $res['messageId'] ?? ($res['dtMessageId'] ?? ('out_' . uniqid()));
+
+        $appUrl = rtrim($config['app']['url'], '/');
+        $proxyUrl = $appUrl . '/media_proxy.php?file=' . urlencode($savedName) . '&name=' . urlencode($origName);
+
+        // Save to database
+        try {
+            $db = Database::getInstance();
+            $stmt = $db->prepare("
+                INSERT INTO message_mappings (
+                    portal_id, b24_chat_id, b24_message_id, dt_message_id, whatsapp_message_id,
+                    customer_phone, direction, message_type, status, raw_data, created_at
+                ) VALUES (
+                    :portal_id, 0, 0, :dt_id, NULL,
+                    :phone, 'OUTBOUND', :type, 'sent', :raw_data, datetime('now')
+                )
+            ");
+            $stmt->execute([
+                'portal_id' => $b24 ? $b24->getPortalId() : 1,
+                'dt_id' => $msgId,
+                'phone' => preg_replace('/[^0-9]/', '', $phone),
+                'type' => $mediaType,
+                'raw_data' => json_encode([
+                    'text' => $caption,
+                    'media_url' => $proxyUrl,
+                    'dt_url' => $dtMediaUrl,
+                    'media_type' => $mediaType,
+                    'file_name' => $origName,
+                    'file_size' => $file['size'],
+                    'time' => date('Y-m-d H:i:s'),
+                ]),
+            ]);
+        } catch (\Throwable $dbEx) {
+            Logger::error("Failed to log sent media message: " . $dbEx->getMessage());
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message_id' => $msgId,
+            'media_url' => $proxyUrl,
+            'media_type' => $mediaType,
+            'file_name' => $origName,
+            'caption' => $caption,
+            'time_str' => date('h:i A'),
+            'raw_response' => $res,
+        ]);
+    } catch (\Throwable $e) {
+        @unlink($targetPath);
+        $msg = $e->getMessage();
+        $isClosed = (stripos($msg, 'closed window') !== false || stripos($msg, 'template message') !== false || stripos($msg, 'window is closed') !== false);
+        echo json_encode([
+            'success' => false,
+            'error' => $msg,
+            'window_closed' => $isClosed,
+        ]);
+    }
+    exit;
+}
+
+// -------------------------------------------------------------
+// AJAX Action: Send WhatsApp Voice Note (PTT)
+// -------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send_voice_note') {
+    header('Content-Type: application/json');
+    $phone = trim((string)($_POST['phone'] ?? ''));
+    $duration = (int)($_POST['duration'] ?? 0);
+    $memberId = (string)($_POST['member_id'] ?? '');
+    $domain = (string)($_POST['domain'] ?? '');
+
+    $b24 = null;
+    if ($memberId) $b24 = BitrixClient::getByMemberId($memberId);
+    if (!$b24 && $domain) $b24 = BitrixClient::getByDomain($domain);
+    if (!$b24) $b24 = BitrixClient::getFirstActive();
+    $apiKey = $b24 ? $b24->getDoubleTickApiKey() : $config['doubletick']['api_key'];
+    $waba = $b24 ? $b24->getDoubleTickWaba() : $config['doubletick']['default_waba'];
+
+    if (!$apiKey || !$phone) {
+        echo json_encode(['success' => false, 'error' => 'API Key and phone number are required.']);
+        exit;
+    }
+
+    $mediaDir = dirname(__DIR__) . '/storage/media';
+    if (!is_dir($mediaDir)) @mkdir($mediaDir, 0777, true);
+
+    $savedName = 'voice_' . uniqid() . '.ogg';
+    $targetPath = $mediaDir . '/' . $savedName;
+
+    if (!empty($_FILES['audio_file']) && $_FILES['audio_file']['error'] === UPLOAD_ERR_OK) {
+        move_uploaded_file($_FILES['audio_file']['tmp_name'], $targetPath);
+    } elseif (!empty($_POST['audio_base64'])) {
+        $base64 = preg_replace('/^data:audio\/\w+;base64,/', '', $_POST['audio_base64']);
+        file_put_contents($targetPath, base64_decode($base64));
+    } else {
+        echo json_encode(['success' => false, 'error' => 'No voice recording audio received.']);
+        exit;
+    }
+
+    if (!file_exists($targetPath) || filesize($targetPath) === 0) {
+        echo json_encode(['success' => false, 'error' => 'Voice recording is empty.']);
+        exit;
+    }
+
+    try {
+        $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
+        $dtMediaUrl = $dt->uploadMedia($targetPath, 'audio/ogg', 'voice_note.ogg');
+
+        $res = $dt->sendVoiceNote($phone, $dtMediaUrl, null, $waba);
+        $msgId = $res['messageId'] ?? ($res['dtMessageId'] ?? ('voice_' . uniqid()));
+
+        $appUrl = rtrim($config['app']['url'], '/');
+        $proxyUrl = $appUrl . '/media_proxy.php?file=' . urlencode($savedName) . '&name=voice_note.ogg';
+
+        // Save to database
+        try {
+            $db = Database::getInstance();
+            $stmt = $db->prepare("
+                INSERT INTO message_mappings (
+                    portal_id, b24_chat_id, b24_message_id, dt_message_id, whatsapp_message_id,
+                    customer_phone, direction, message_type, status, raw_data, created_at
+                ) VALUES (
+                    :portal_id, 0, 0, :dt_id, NULL,
+                    :phone, 'OUTBOUND', 'audio', 'sent', :raw_data, datetime('now')
+                )
+            ");
+            $stmt->execute([
+                'portal_id' => $b24 ? $b24->getPortalId() : 1,
+                'dt_id' => $msgId,
+                'phone' => preg_replace('/[^0-9]/', '', $phone),
+                'raw_data' => json_encode([
+                    'text' => '',
+                    'media_url' => $proxyUrl,
+                    'dt_url' => $dtMediaUrl,
+                    'media_type' => 'audio',
+                    'is_voice_note' => true,
+                    'file_name' => 'voice_note.ogg',
+                    'duration' => $duration,
+                    'time' => date('Y-m-d H:i:s'),
+                ]),
+            ]);
+        } catch (\Throwable $dbEx) {
+            Logger::error("Failed to log sent voice note: " . $dbEx->getMessage());
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message_id' => $msgId,
+            'media_url' => $proxyUrl,
+            'media_type' => 'audio',
+            'is_voice_note' => true,
+            'duration' => $duration,
+            'time_str' => date('h:i A'),
+            'raw_response' => $res,
+        ]);
+    } catch (\Throwable $e) {
+        $msg = $e->getMessage();
+        $isClosed = (stripos($msg, 'closed window') !== false || stripos($msg, 'template message') !== false || stripos($msg, 'window is closed') !== false);
+        echo json_encode([
+            'success' => false,
+            'error' => $msg,
+            'window_closed' => $isClosed,
         ]);
     }
     exit;
@@ -1201,6 +1499,394 @@ header('Content-Security-Policy: frame-ancestors *');
         .form-group label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
         .form-control { width: 100%; padding: 10px 12px; background: #0f172a; border: 1px solid var(--card-border); border-radius: 8px; color: #fff; font-size: 13.5px; outline: none; }
         .form-control:focus { border-color: var(--primary); }
+
+        /* WhatsApp-style Audio Player */
+        .wa-audio-player {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 4px 2px;
+            min-width: 250px;
+            max-width: 320px;
+        }
+        .wa-audio-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .wa-audio-mic-badge {
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            font-size: 10px;
+            background: #10b981;
+            border-radius: 50%;
+            width: 14px;
+            height: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .wa-audio-play-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            border: none;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .wa-audio-play-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.05);
+        }
+        .wa-audio-track-container {
+            flex: 1;
+            height: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+        }
+        .wa-audio-waveform {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            height: 16px;
+            width: 100%;
+        }
+        .wa-audio-waveform span {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.35);
+            border-radius: 1px;
+            min-height: 3px;
+            transition: background 0.1s;
+        }
+        .wa-audio-progress-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: var(--primary);
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+        .wa-audio-meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+        .wa-audio-time {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: monospace;
+        }
+        .wa-audio-speed-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            color: #e2e8f0;
+            font-size: 10px;
+            padding: 1px 5px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .wa-audio-speed-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Image Message Styling */
+        .wa-image-card {
+            position: relative;
+            cursor: pointer;
+            overflow: hidden;
+            border-radius: 8px;
+            max-width: 280px;
+            margin-bottom: 4px;
+        }
+        .wa-image-card img {
+            display: block;
+            width: 100%;
+            max-height: 240px;
+            object-fit: cover;
+            border-radius: 8px;
+            transition: transform 0.2s;
+        }
+        .wa-image-card:hover img {
+            transform: scale(1.02);
+        }
+        .wa-image-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.25);
+            opacity: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.2s;
+            border-radius: 8px;
+        }
+        .wa-image-card:hover .wa-image-overlay {
+            opacity: 1;
+        }
+
+        /* Document Message Styling */
+        .wa-doc-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 10px 14px;
+            border-radius: 10px;
+            max-width: 320px;
+            margin-bottom: 4px;
+        }
+        .wa-doc-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: #e11d48;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .wa-doc-icon.pdf { background: #e11d48; }
+        .wa-doc-icon.doc { background: #2563eb; }
+        .wa-doc-icon.xls { background: #16a34a; }
+        .wa-doc-icon.zip { background: #d97706; }
+        .wa-doc-icon.other { background: #475569; }
+        .wa-doc-details {
+            flex: 1;
+            min-width: 0;
+        }
+        .wa-doc-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .wa-doc-meta {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 2px;
+        }
+        .wa-doc-dl-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .wa-doc-dl-btn:hover {
+            background: var(--primary);
+            transform: scale(1.08);
+        }
+
+        /* Attachment Preview Drawer */
+        .attachment-preview-drawer {
+            background: #1e2a30;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+            animation: slideUp 0.2s ease;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .attachment-preview-thumb {
+            width: 44px;
+            height: 44px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .attachment-preview-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .attachment-preview-meta {
+            flex: 1;
+            min-width: 0;
+        }
+        .attachment-name {
+            display: block;
+            font-size: 13px;
+            color: #fff;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .attachment-size {
+            display: block;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+        .attachment-caption-input {
+            flex: 2;
+            background: #111b21;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            color: #fff;
+            padding: 6px 12px;
+            font-size: 13px;
+            outline: none;
+        }
+        .attachment-caption-input:focus {
+            border-color: var(--primary);
+        }
+        .attachment-remove-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px;
+            line-height: 1;
+            border-radius: 4px;
+        }
+        .attachment-remove-btn:hover {
+            color: #ef4444;
+        }
+
+        /* Composer Buttons */
+        .composer-btn {
+            height: 42px;
+            width: 42px;
+            padding: 0;
+            justify-content: center;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .btn-mic {
+            color: #94a3b8;
+        }
+        .btn-mic:hover {
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        /* Active Voice Recording Bar */
+        .recording-pulse-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: pulseRecord 1s infinite alternate;
+        }
+        @keyframes pulseRecord {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0.3; transform: scale(0.8); }
+        }
+        .recording-waveform {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            height: 20px;
+        }
+        .rec-bar {
+            width: 3px;
+            background: #ef4444;
+            border-radius: 2px;
+            animation: waveBounce 0.8s ease-in-out infinite alternate;
+        }
+        .rec-bar.b1 { height: 6px; animation-delay: 0.1s; }
+        .rec-bar.b2 { height: 14px; animation-delay: 0.2s; }
+        .rec-bar.b3 { height: 18px; animation-delay: 0.3s; }
+        .rec-bar.b4 { height: 8px; animation-delay: 0.4s; }
+        .rec-bar.b5 { height: 16px; animation-delay: 0.2s; }
+        .rec-bar.b6 { height: 10px; animation-delay: 0.3s; }
+        .rec-bar.b7 { height: 18px; animation-delay: 0.1s; }
+        .rec-bar.b8 { height: 7px; animation-delay: 0.4s; }
+        @keyframes waveBounce {
+            0% { transform: scaleY(0.3); }
+            100% { transform: scaleY(1.2); }
+        }
+
+        /* Fullscreen Lightbox */
+        .lightbox-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(8px);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            animation: fadeInMsg 0.2s ease;
+        }
+        .lightbox-img {
+            max-width: 90vw;
+            max-height: 80vh;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            object-fit: contain;
+        }
+        .lightbox-close {
+            position: absolute;
+            top: 20px;
+            right: 28px;
+            color: #fff;
+            font-size: 32px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .lightbox-close:hover {
+            color: #ef4444;
+        }
+        .lightbox-footer {
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            color: #fff;
+        }
+        .lightbox-caption {
+            font-size: 14px;
+            color: #e2e8f0;
+        }
     </style>
 </head>
 <body>
@@ -1269,17 +1955,61 @@ header('Content-Security-Policy: frame-ancestors *');
         <div class="quick-pill" onclick="openTemplateModal()">📋 Send Template Message...</div>
     </div>
 
+    <!-- Attachment Drawer (above composer) -->
+    <div id="attachment-preview-drawer" class="attachment-preview-drawer" style="display: none;">
+        <div class="attachment-preview-thumb" id="attachment-preview-thumb">📎</div>
+        <div class="attachment-preview-meta">
+            <span id="attachment-preview-name" class="attachment-name">filename.pdf</span>
+            <span id="attachment-preview-size" class="attachment-size">1.2 MB</span>
+        </div>
+        <input type="text" id="attachment-caption-input" class="attachment-caption-input" placeholder="Add an optional caption...">
+        <button class="attachment-remove-btn" onclick="clearAttachment()" title="Remove file">&times;</button>
+    </div>
+
+    <!-- Hidden file input for attachments -->
+    <input type="file" id="chat-file-input" style="display: none;" onchange="handleFilePicked(this)" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
+
     <!-- Message Composer -->
     <div class="chat-composer">
-        <button class="btn btn-secondary" style="height: 44px; width: 44px; padding: 0; justify-content: center; border-radius: 50%;" onclick="openTemplateModal()" title="Send WhatsApp Template">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        </button>
-        <div class="composer-input-wrapper">
-            <textarea id="message-input" class="composer-textarea" rows="1" placeholder="Type a WhatsApp message... (Enter to send, Shift+Enter for new line)"></textarea>
+        <!-- Normal Composer Controls -->
+        <div id="composer-normal-controls" style="display: flex; width: 100%; align-items: flex-end; gap: 8px;">
+            <button class="btn btn-secondary composer-btn" onclick="openTemplateModal()" title="Send WhatsApp Template">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            </button>
+            <button class="btn btn-secondary composer-btn" onclick="triggerFilePicker()" title="Attach File, Image, Document or Voice">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <div class="composer-input-wrapper">
+                <textarea id="message-input" class="composer-textarea" rows="1" placeholder="Type a WhatsApp message... (Enter to send, Shift+Enter for new line)"></textarea>
+            </div>
+            <button id="btn-mic" class="btn btn-secondary composer-btn btn-mic" onclick="toggleVoiceRecording()" title="Record Voice Note (PTT)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
+            <button id="btn-send" class="btn-send" onclick="handleSendAction()" title="Send WhatsApp Message">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transform: translateX(1px);"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
         </div>
-        <button id="btn-send" class="btn-send" onclick="sendMessage()" title="Send WhatsApp Message">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transform: translateX(1px);"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        </button>
+
+        <!-- Voice Recording Active Bar -->
+        <div id="composer-recording-bar" style="display: none; width: 100%; align-items: center; justify-content: space-between; gap: 12px; background: #182229; padding: 6px 14px; border-radius: 20px; border: 1px solid rgba(239, 68, 68, 0.4);">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="recording-pulse-dot"></span>
+                <span id="recording-timer" style="font-family: monospace; font-size: 14px; font-weight: 600; color: #f87171;">00:00</span>
+                <div class="recording-waveform">
+                    <span class="rec-bar b1"></span><span class="rec-bar b2"></span><span class="rec-bar b3"></span>
+                    <span class="rec-bar b4"></span><span class="rec-bar b5"></span><span class="rec-bar b6"></span>
+                    <span class="rec-bar b7"></span><span class="rec-bar b8"></span>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button class="btn btn-secondary" style="border-radius: 50%; width: 36px; height: 36px; padding: 0; color: #94a3b8;" onclick="cancelVoiceRecording()" title="Cancel Recording">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+                <button class="btn-send" style="width: 36px; height: 36px; background: #10b981;" onclick="finishAndSendVoiceRecording()" title="Send Voice Note">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1377,6 +2107,19 @@ header('Content-Security-Policy: frame-ancestors *');
                 <button class="btn btn-primary" onclick="copyDebugJsonToClipboard()">📋 Copy to Clipboard</button>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Full Image Lightbox Modal -->
+<div id="lightbox-modal" class="lightbox-modal" onclick="closeLightbox(event)">
+    <span class="lightbox-close" onclick="closeLightbox(event)">&times;</span>
+    <img id="lightbox-img" class="lightbox-img" src="" alt="Preview">
+    <div class="lightbox-footer">
+        <span id="lightbox-caption" class="lightbox-caption"></span>
+        <a id="lightbox-download" class="btn btn-secondary" href="" download="" target="_blank" rel="noopener">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download
+        </a>
     </div>
 </div>
 
@@ -1582,7 +2325,7 @@ header('Content-Security-Policy: frame-ancestors *');
         textarea.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                sendMessage();
+                handleSendAction();
             }
         });
 
@@ -1725,7 +2468,7 @@ header('Content-Security-Policy: frame-ancestors *');
             }
 
             if (m.media_url) {
-                bubbleContent += `<div style="margin-bottom: 6px;"><a href="${escapeHtml(m.media_url)}" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: underline;">📎 View Attachment</a></div>`;
+                bubbleContent += renderMediaAttachment(m, isOut);
             }
 
             let textContent = formatMessageText(m.text);
@@ -1740,9 +2483,9 @@ header('Content-Security-Policy: frame-ancestors *');
             }
 
             if (textContent) {
-                bubbleContent += `<div style="white-space: pre-wrap;">${escapeHtml(textContent)}</div>`;
+                bubbleContent += `<div style="white-space: pre-wrap; margin-top: ${m.media_url ? '4px' : '0'};">${escapeHtml(textContent)}</div>`;
             } else if (m.media_url) {
-                // Media only
+                // Media only, cleanly rendered above
             } else if (isTpl) {
                 bubbleContent += `<div style="font-style: italic; opacity: 0.85;">📋 Template message</div>`;
             } else {
@@ -1759,6 +2502,510 @@ header('Content-Security-Policy: frame-ancestors *');
         if (isScrolledToBottom || forceScroll) {
             container.scrollTop = container.scrollHeight;
         }
+    }
+
+    // -------------------------------------------------------------
+    // Rich Media Renderers (Audio, Image, Video, Document)
+    // -------------------------------------------------------------
+    function renderMediaAttachment(m, isOut) {
+        if (!m.media_url) return '';
+        const mUrl = m.media_url;
+        const mType = m.type || 'media';
+        const fileName = m.file_name || 'attachment';
+        const isVoice = m.is_voice_note || mType === 'audio';
+
+        if (mType === 'audio' || isVoice) {
+            return `
+                <div class="wa-audio-player" data-src="${escapeHtml(mUrl)}">
+                    <div class="wa-audio-avatar">
+                        ${isOut ? '👤' : '🎧'}
+                        <span class="wa-audio-mic-badge" title="Voice note">🎙️</span>
+                    </div>
+                    <button class="wa-audio-play-btn" onclick="toggleAudio(this)" title="Play / Pause">
+                        <svg class="icon-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        <svg class="icon-pause" style="display:none;" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                    </button>
+                    <div class="wa-audio-track-container" onclick="seekAudio(event, this)" title="Click to seek">
+                        <div class="wa-audio-waveform">
+                            <span style="height: 35%;"></span><span style="height: 65%;"></span><span style="height: 90%;"></span>
+                            <span style="height: 40%;"></span><span style="height: 75%;"></span><span style="height: 30%;"></span>
+                            <span style="height: 85%;"></span><span style="height: 50%;"></span><span style="height: 100%;"></span>
+                            <span style="height: 60%;"></span><span style="height: 45%;"></span><span style="height: 70%;"></span>
+                            <span style="height: 55%;"></span><span style="height: 80%;"></span><span style="height: 40%;"></span>
+                        </div>
+                        <div class="wa-audio-progress-bar"></div>
+                    </div>
+                    <div class="wa-audio-meta">
+                        <span class="wa-audio-time">0:00</span>
+                        <button class="wa-audio-speed-btn" onclick="togglePlaybackSpeed(this)" title="Playback speed">1x</button>
+                    </div>
+                    <audio preload="metadata" src="${escapeHtml(mUrl)}" onended="onAudioEnded(this)" ontimeupdate="onAudioTimeUpdate(this)" onloadedmetadata="onAudioMetadataLoaded(this)"></audio>
+                </div>
+            `;
+        }
+
+        if (mType === 'image') {
+            return `
+                <div class="wa-image-card" onclick="openLightbox('${escapeHtml(mUrl)}', '${escapeHtml(fileName)}')">
+                    <img src="${escapeHtml(mUrl)}" alt="${escapeHtml(fileName)}" loading="lazy">
+                    <div class="wa-image-overlay">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (mType === 'video') {
+            return `
+                <div style="margin-bottom: 6px; max-width: 280px;">
+                    <video controls preload="metadata" style="width: 100%; border-radius: 8px;">
+                        <source src="${escapeHtml(mUrl)}">
+                        Your browser does not support video.
+                    </video>
+                </div>
+            `;
+        }
+
+        // Default: Document card
+        let ext = (fileName.split('.').pop() || 'doc').toUpperCase();
+        let iconClass = 'other';
+        if (ext === 'PDF') iconClass = 'pdf';
+        else if (['DOC', 'DOCX'].includes(ext)) iconClass = 'doc';
+        else if (['XLS', 'XLSX', 'CSV'].includes(ext)) iconClass = 'xls';
+        else if (['ZIP', 'RAR', '7Z', 'TAR'].includes(ext)) iconClass = 'zip';
+
+        return `
+            <div class="wa-doc-card">
+                <div class="wa-doc-icon ${iconClass}">${escapeHtml(ext.substring(0, 4))}</div>
+                <div class="wa-doc-details">
+                    <div class="wa-doc-name" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
+                    <div class="wa-doc-meta">${escapeHtml(ext)} Document</div>
+                </div>
+                <a href="${escapeHtml(mUrl)}&download=1" download="${escapeHtml(fileName)}" class="wa-doc-dl-btn" title="Download ${escapeHtml(fileName)}" target="_blank" rel="noopener">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </a>
+            </div>
+        `;
+    }
+
+    // -------------------------------------------------------------
+    // Audio Player Event Handlers
+    // -------------------------------------------------------------
+    let currentlyPlayingAudio = null;
+
+    function toggleAudio(btn) {
+        const player = btn.closest('.wa-audio-player');
+        const audio = player?.querySelector('audio');
+        const iconPlay = btn.querySelector('.icon-play');
+        const iconPause = btn.querySelector('.icon-pause');
+
+        if (!audio) return;
+
+        if (audio.paused) {
+            if (currentlyPlayingAudio && currentlyPlayingAudio !== audio) {
+                currentlyPlayingAudio.pause();
+                const otherBtn = currentlyPlayingAudio.closest('.wa-audio-player')?.querySelector('.wa-audio-play-btn');
+                if (otherBtn) {
+                    otherBtn.querySelector('.icon-play').style.display = 'block';
+                    otherBtn.querySelector('.icon-pause').style.display = 'none';
+                }
+            }
+            audio.play().then(() => {
+                currentlyPlayingAudio = audio;
+                iconPlay.style.display = 'none';
+                iconPause.style.display = 'block';
+            }).catch(err => {
+                console.warn('Audio playback error:', err);
+            });
+        } else {
+            audio.pause();
+            iconPlay.style.display = 'block';
+            iconPause.style.display = 'none';
+        }
+    }
+
+    function onAudioTimeUpdate(audio) {
+        const player = audio.closest('.wa-audio-player');
+        if (!player) return;
+        const prog = player.querySelector('.wa-audio-progress-bar');
+        const timeEl = player.querySelector('.wa-audio-time');
+        if (audio.duration && !isNaN(audio.duration)) {
+            const pct = (audio.currentTime / audio.duration) * 100;
+            if (prog) prog.style.width = pct + '%';
+            if (timeEl) timeEl.innerText = formatDuration(audio.currentTime);
+        }
+    }
+
+    function onAudioMetadataLoaded(audio) {
+        const player = audio.closest('.wa-audio-player');
+        if (!player) return;
+        const timeEl = player.querySelector('.wa-audio-time');
+        if (timeEl && audio.duration && !isNaN(audio.duration)) {
+            timeEl.innerText = formatDuration(audio.duration);
+        }
+    }
+
+    function onAudioEnded(audio) {
+        const player = audio.closest('.wa-audio-player');
+        if (!player) return;
+        const btn = player.querySelector('.wa-audio-play-btn');
+        const prog = player.querySelector('.wa-audio-progress-bar');
+        const timeEl = player.querySelector('.wa-audio-time');
+        if (btn) {
+            btn.querySelector('.icon-play').style.display = 'block';
+            btn.querySelector('.icon-pause').style.display = 'none';
+        }
+        if (prog) prog.style.width = '0%';
+        if (timeEl && audio.duration) timeEl.innerText = formatDuration(audio.duration);
+        if (currentlyPlayingAudio === audio) currentlyPlayingAudio = null;
+    }
+
+    function seekAudio(e, track) {
+        const player = track.closest('.wa-audio-player');
+        const audio = player?.querySelector('audio');
+        if (!audio || !audio.duration) return;
+        const rect = track.getBoundingClientRect();
+        const pos = (e.clientX - rect.left) / rect.width;
+        audio.currentTime = Math.max(0, Math.min(pos * audio.duration, audio.duration));
+    }
+
+    function togglePlaybackSpeed(btn) {
+        const player = btn.closest('.wa-audio-player');
+        const audio = player?.querySelector('audio');
+        if (!audio) return;
+        let rate = audio.playbackRate || 1;
+        if (rate === 1) rate = 1.5;
+        else if (rate === 1.5) rate = 2;
+        else rate = 1;
+        audio.playbackRate = rate;
+        btn.innerText = rate + 'x';
+    }
+
+    function formatDuration(sec) {
+        sec = Math.floor(sec) || 0;
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    // -------------------------------------------------------------
+    // Fullscreen Image Lightbox
+    // -------------------------------------------------------------
+    function openLightbox(src, name) {
+        const modal = document.getElementById('lightbox-modal');
+        const img = document.getElementById('lightbox-img');
+        const caption = document.getElementById('lightbox-caption');
+        const dl = document.getElementById('lightbox-download');
+        if (!modal || !img) return;
+
+        img.src = src;
+        caption.innerText = name || '';
+        dl.href = src + (src.includes('?') ? '&' : '?') + 'download=1';
+        dl.setAttribute('download', name || 'image.jpg');
+        modal.style.display = 'flex';
+    }
+
+    function closeLightbox(e) {
+        if (e && e.target && e.target.id === 'lightbox-img') return;
+        const modal = document.getElementById('lightbox-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    // -------------------------------------------------------------
+    // Attachment File Picker & Drawer Handlers
+    // -------------------------------------------------------------
+    let selectedAttachmentFile = null;
+
+    function triggerFilePicker() {
+        const input = document.getElementById('chat-file-input');
+        if (input) input.click();
+    }
+
+    function handleFilePicked(input) {
+        if (!input.files || input.files.length === 0) return;
+        const file = input.files[0];
+        const maxSize = 16 * 1024 * 1024; // 16 MB DoubleTick limit
+        if (file.size > maxSize) {
+            alert('The selected file exceeds 16 MB. Please select a smaller file.');
+            input.value = '';
+            return;
+        }
+
+        selectedAttachmentFile = file;
+        const drawer = document.getElementById('attachment-preview-drawer');
+        const nameEl = document.getElementById('attachment-preview-name');
+        const sizeEl = document.getElementById('attachment-preview-size');
+        const thumbEl = document.getElementById('attachment-preview-thumb');
+        const captionInput = document.getElementById('attachment-caption-input');
+
+        nameEl.innerText = file.name;
+        sizeEl.innerText = formatFileSize(file.size);
+        captionInput.value = '';
+
+        // Generate thumbnail preview for images
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                thumbEl.innerHTML = `<img src="${e.target.result}" alt="Thumb" style="width:100%;height:100%;object-fit:cover;border-radius:4px;">`;
+            };
+            reader.readAsDataURL(file);
+        } else if (file.type.startsWith('audio/')) {
+            thumbEl.innerHTML = '🎵';
+        } else if (file.type.startsWith('video/')) {
+            thumbEl.innerHTML = '🎬';
+        } else if (file.name.endsWith('.pdf')) {
+            thumbEl.innerHTML = '📄';
+        } else {
+            thumbEl.innerHTML = '📎';
+        }
+
+        drawer.style.display = 'flex';
+        captionInput.focus();
+    }
+
+    function clearAttachment() {
+        selectedAttachmentFile = null;
+        const input = document.getElementById('chat-file-input');
+        if (input) input.value = '';
+        const drawer = document.getElementById('attachment-preview-drawer');
+        if (drawer) drawer.style.display = 'none';
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // -------------------------------------------------------------
+    // Voice Note (PTT) Recorder Logic
+    // -------------------------------------------------------------
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let recordingInterval = null;
+    let recordingStartTime = 0;
+    let isRecordingActive = false;
+
+    async function toggleVoiceRecording() {
+        if (isRecordingActive) {
+            finishAndSendVoiceRecording();
+        } else {
+            startVoiceRecording();
+        }
+    }
+
+    async function startVoiceRecording() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert('Your browser does not support audio recording. Please ensure you are running on HTTPS or localhost.');
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioChunks = [];
+
+            let options = {};
+            if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+                options = { mimeType: 'audio/ogg;codecs=opus' };
+            } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                options = { mimeType: 'audio/webm;codecs=opus' };
+            } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+                options = { mimeType: 'audio/webm' };
+            }
+
+            mediaRecorder = new MediaRecorder(stream, options);
+
+            mediaRecorder.ondataavailable = function(e) {
+                if (e.data && e.data.size > 0) {
+                    audioChunks.push(e.data);
+                }
+            };
+
+            mediaRecorder.onstop = function() {
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorder.start(100);
+            isRecordingActive = true;
+            recordingStartTime = Date.now();
+
+            document.getElementById('composer-normal-controls').style.display = 'none';
+            document.getElementById('composer-recording-bar').style.display = 'flex';
+            document.getElementById('recording-timer').innerText = '00:00';
+
+            recordingInterval = setInterval(function() {
+                const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+                const m = Math.floor(elapsed / 60);
+                const s = elapsed % 60;
+                document.getElementById('recording-timer').innerText = 
+                    (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+            }, 500);
+
+        } catch (err) {
+            console.error('Microphone access denied:', err);
+            alert('Could not access microphone: ' + (err.message || 'Permission denied. Please allow microphone access.'));
+        }
+    }
+
+    function cancelVoiceRecording() {
+        if (mediaRecorder && isRecordingActive) {
+            mediaRecorder.onstop = null;
+            try { mediaRecorder.stop(); } catch(e) {}
+        }
+        stopRecordingUI();
+    }
+
+    function stopRecordingUI() {
+        isRecordingActive = false;
+        if (recordingInterval) {
+            clearInterval(recordingInterval);
+            recordingInterval = null;
+        }
+        document.getElementById('composer-recording-bar').style.display = 'none';
+        document.getElementById('composer-normal-controls').style.display = 'flex';
+    }
+
+    function finishAndSendVoiceRecording() {
+        if (!mediaRecorder || !isRecordingActive) return;
+
+        const durationSec = Math.max(1, Math.floor((Date.now() - recordingStartTime) / 1000));
+
+        mediaRecorder.onstop = function() {
+            const mimeType = mediaRecorder.mimeType || 'audio/ogg';
+            const audioBlob = new Blob(audioChunks, { type: mimeType });
+            sendVoiceNoteBlob(audioBlob, durationSec);
+        };
+
+        try { mediaRecorder.stop(); } catch(e) {}
+        stopRecordingUI();
+    }
+
+    function sendVoiceNoteBlob(blob, duration) {
+        if (!currentPhone) return;
+
+        const currentDomain = (window.keenDebugStore && window.keenDebugStore.crmInfo && window.keenDebugStore.crmInfo.domain) ? window.keenDebugStore.crmInfo.domain : '';
+        const tempId = 'temp_voice_' + Date.now();
+        const container = document.getElementById('chat-messages');
+
+        const optimisticHtml = `
+            <div class="message-row outbound" id="${tempId}">
+                <div class="bubble">
+                    <div class="wa-audio-player">
+                        <div class="wa-audio-avatar">👤<span class="wa-audio-mic-badge">🎙️</span></div>
+                        <button class="wa-audio-play-btn" disabled><svg class="icon-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+                        <div class="wa-audio-track-container"><div class="wa-audio-waveform"><span style="height:50%"></span><span style="height:80%"></span><span style="height:40%"></span><span style="height:90%"></span></div></div>
+                        <div class="wa-audio-meta"><span class="wa-audio-time">${formatDuration(duration)}</span></div>
+                    </div>
+                    <div class="bubble-footer"><span>Uploading voice note...</span> <span class="status-check">🕒</span></div>
+                </div>
+            </div>
+        `;
+        if (container.querySelector('.empty-chat')) container.innerHTML = '';
+        container.insertAdjacentHTML('beforeend', optimisticHtml);
+        container.scrollTop = container.scrollHeight;
+
+        const formData = new FormData();
+        formData.append('action', 'send_voice_note');
+        formData.append('phone', currentPhone);
+        formData.append('duration', duration);
+        formData.append('audio_file', blob, 'voice_note.ogg');
+        formData.append('member_id', currentMemberId);
+        formData.append('domain', currentDomain);
+
+        window.keenDebugStore.logReq('send_voice_note', { phone: currentPhone, duration: duration, size: blob.size });
+
+        fetch('placement_tab.php', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                window.keenDebugStore.logRes('send_voice_note', data);
+                if (data.success) {
+                    loadChatHistory(true);
+                } else {
+                    const tempEl = document.getElementById(tempId);
+                    if (tempEl) {
+                        tempEl.querySelector('.status-check').innerHTML = '<span style="color: var(--danger);">⚠️</span>';
+                        tempEl.querySelector('.bubble-footer span:first-child').innerText = 'Failed to send voice note';
+                    }
+                    alert('Failed to send voice note: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => {
+                window.keenDebugStore.logErr('send_voice_note', err);
+                alert('Error sending voice note: ' + err.message);
+            });
+    }
+
+    // -------------------------------------------------------------
+    // Send Action Router (Text or Media)
+    // -------------------------------------------------------------
+    function handleSendAction() {
+        if (selectedAttachmentFile) {
+            sendAttachment();
+        } else {
+            sendMessage();
+        }
+    }
+
+    function sendAttachment() {
+        if (!selectedAttachmentFile || !currentPhone) return;
+
+        const captionInput = document.getElementById('attachment-caption-input');
+        const caption = captionInput ? captionInput.value.trim() : '';
+        const file = selectedAttachmentFile;
+        const currentDomain = (window.keenDebugStore && window.keenDebugStore.crmInfo && window.keenDebugStore.crmInfo.domain) ? window.keenDebugStore.crmInfo.domain : '';
+
+        const btn = document.getElementById('btn-send');
+        btn.disabled = true;
+
+        const tempId = 'temp_att_' + Date.now();
+        const container = document.getElementById('chat-messages');
+
+        const optimisticHtml = `
+            <div class="message-row outbound" id="${tempId}">
+                <div class="bubble">
+                    <div style="font-size: 12px; color: #a7f3d0; margin-bottom: 4px;">📎 Uploading ${escapeHtml(file.name)} (${formatFileSize(file.size)})...</div>
+                    ${caption ? `<div style="white-space: pre-wrap;">${escapeHtml(caption)}</div>` : ''}
+                    <div class="bubble-footer"><span>Uploading attachment...</span> <span class="status-check">🕒</span></div>
+                </div>
+            </div>
+        `;
+        if (container.querySelector('.empty-chat')) container.innerHTML = '';
+        container.insertAdjacentHTML('beforeend', optimisticHtml);
+        container.scrollTop = container.scrollHeight;
+
+        const formData = new FormData();
+        formData.append('action', 'send_media');
+        formData.append('phone', currentPhone);
+        formData.append('caption', caption);
+        formData.append('file', file);
+        formData.append('member_id', currentMemberId);
+        formData.append('domain', currentDomain);
+
+        clearAttachment();
+
+        window.keenDebugStore.logReq('send_media', { phone: currentPhone, fileName: file.name, size: file.size, caption: caption });
+
+        fetch('placement_tab.php', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                btn.disabled = false;
+                window.keenDebugStore.logRes('send_media', data);
+                if (data.success) {
+                    loadChatHistory(true);
+                } else {
+                    const tempEl = document.getElementById(tempId);
+                    if (tempEl) {
+                        tempEl.querySelector('.status-check').innerHTML = '<span style="color: var(--danger);">⚠️</span>';
+                        tempEl.querySelector('.bubble-footer span:first-child').innerText = 'Upload failed';
+                    }
+                    alert('Failed to send attachment: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                window.keenDebugStore.logErr('send_media', err);
+                alert('Error uploading attachment: ' + err.message);
+            });
     }
 
     function sendMessage() {

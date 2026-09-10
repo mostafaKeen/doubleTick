@@ -186,14 +186,54 @@ class ImConnectorService
             $cleanText = strip_tags(preg_replace('/\[.*?\]/', '', $cleanText));
             $cleanText = trim($cleanText);
 
-            if ($cleanText === '') {
+            // Check for file attachments from Bitrix24 operator
+            $b24Files = $msg['message']['files'] ?? [];
+
+            if ($cleanText === '' && empty($b24Files)) {
                 continue;
             }
 
             try {
-                // Send text message via DoubleTick
-                $dtRes = $dtClient->sendTextMessage($customerPhone, $cleanText);
-                $dtMessageId = $dtRes['messageId'] ?? $dtRes['dtMessageId'] ?? ('out_' . uniqid());
+                $dtMessageId = 'out_' . uniqid();
+                $lastSentMediaType = 'text';
+                $primaryMediaUrl = null;
+
+                if (!empty($b24Files)) {
+                    foreach ($b24Files as $fItem) {
+                        $fUrl = $fItem['url'] ?? $fItem['link'] ?? '';
+                        $fName = $fItem['name'] ?? 'attachment';
+                        if (empty($fUrl)) continue;
+
+                        // Download from Bitrix24 and upload to DoubleTick
+                        $tmpFile = tempnam(sys_get_temp_dir(), 'b24_out_');
+                        $fileData = @file_get_contents($fUrl);
+                        if ($fileData !== false) {
+                            file_put_contents($tmpFile, $fileData);
+                            $dtMediaUrl = $dtClient->uploadMedia($tmpFile, null, $fName);
+                            @unlink($tmpFile);
+
+                            $ext = strtolower(pathinfo($fName, PATHINFO_EXTENSION));
+                            $mType = match ($ext) {
+                                'jpg', 'jpeg', 'png', 'webp', 'gif' => 'image',
+                                'mp4', 'mov', 'avi' => 'video',
+                                'ogg', 'opus', 'mp3', 'wav', 'webm', 'm4a' => 'audio',
+                                default => 'document'
+                            };
+
+                            $mediaRes = $dtClient->sendMediaMessage($mType, $customerPhone, $dtMediaUrl, $cleanText ?: null, $fName);
+                            $dtMessageId = $mediaRes['messageId'] ?? $mediaRes['dtMessageId'] ?? $dtMessageId;
+                            $lastSentMediaType = $mType;
+                            $primaryMediaUrl = $dtMediaUrl;
+                            $cleanText = ''; // caption was sent with media
+                        }
+                    }
+                }
+
+                // If text remaining (or no files sent)
+                if ($cleanText !== '') {
+                    $dtRes = $dtClient->sendTextMessage($customerPhone, $cleanText);
+                    $dtMessageId = $dtRes['messageId'] ?? $dtRes['dtMessageId'] ?? $dtMessageId;
+                }
 
                 // Confirm delivery back to Bitrix24
                 $this->b24->call('imconnector.send.status.delivery', [
@@ -223,7 +263,7 @@ class ImConnectorService
                         customer_phone, direction, message_type, status, raw_data, created_at
                     ) VALUES (
                         :portal_id, :b24_chat_id, :b24_message_id, :dt_message_id, NULL,
-                        :customer_phone, 'OUTBOUND', 'text', 'sent', :raw_data, datetime('now')
+                        :customer_phone, 'OUTBOUND', :m_type, 'sent', :raw_data, datetime('now')
                     )
                 ");
                 $stmt->execute([
@@ -232,8 +272,11 @@ class ImConnectorService
                     'b24_message_id' => $b24MsgId,
                     'dt_message_id' => $dtMessageId,
                     'customer_phone' => $customerPhone,
+                    'm_type' => $lastSentMediaType,
                     'raw_data' => json_encode([
-                        'text' => $cleanText,
+                        'text' => $rawText,
+                        'media_url' => $primaryMediaUrl,
+                        'media_type' => $lastSentMediaType,
                         'time' => date('Y-m-d H:i:s'),
                     ]),
                 ]);
@@ -241,6 +284,7 @@ class ImConnectorService
                 Logger::info("Outbound message successfully sent to DoubleTick", [
                     'to' => $customerPhone,
                     'dtMessageId' => $dtMessageId,
+                    'type' => $lastSentMediaType
                 ]);
             } catch (Exception $e) {
                 Logger::error("Failed to send outbound message via DoubleTick", [
