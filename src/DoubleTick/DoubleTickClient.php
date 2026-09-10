@@ -499,6 +499,33 @@ class DoubleTickClient
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
+        // Handle SSL CA certificate configuration across Windows & Unix environments
+        if (ini_get('curl.cainfo')) {
+            // Standard php.ini CA bundle configured
+        } else {
+            $caPaths = [
+                'C:/php/extras/ssl/cacert.pem',
+                'C:/php/cacert.pem',
+                'C:/tools/php/cacert.pem',
+                '/etc/ssl/certs/ca-certificates.crt',
+                '/etc/pki/tls/certs/ca-bundle.crt',
+            ];
+            $foundCa = null;
+            foreach ($caPaths as $path) {
+                if (file_exists($path)) {
+                    $foundCa = $path;
+                    break;
+                }
+            }
+            if ($foundCa) {
+                curl_setopt($ch, CURLOPT_CAINFO, $foundCa);
+            } elseif (getenv('APP_ENV') === 'local' || (defined('PHP_OS_FAMILY') && PHP_OS_FAMILY === 'Windows')) {
+                // Prevent fatal crash in environments lacking local CA bundles
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+            }
+        }
+
         if ($body !== null && in_array($method, ['POST', 'PUT', 'PATCH'])) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body, JSON_UNESCAPED_UNICODE));
         }

@@ -192,8 +192,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
     header('Content-Type: application/json');
     $phone = trim((string)($_GET['phone'] ?? ''));
     $memberId = (string)($_GET['member_id'] ?? '');
+    $domain = (string)($_GET['domain'] ?? '');
 
-    $b24 = $memberId ? BitrixClient::getByMemberId($memberId) : BitrixClient::getFirstActive();
+    $b24 = null;
+    if ($memberId) {
+        $b24 = BitrixClient::getByMemberId($memberId);
+    }
+    if (!$b24 && $domain) {
+        $b24 = BitrixClient::getByDomain($domain);
+    }
+    if (!$b24) {
+        $b24 = BitrixClient::getFirstActive();
+    }
     $apiKey = $b24 ? $b24->getDoubleTickApiKey() : $config['doubletick']['api_key'];
     $waba = $b24 ? $b24->getDoubleTickWaba() : $config['doubletick']['default_waba'];
 
@@ -207,6 +217,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
     }
 
     $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
+    $intlPhone = $cleanPhone;
+    if (str_starts_with($cleanPhone, '0') && strlen($cleanPhone) >= 10) {
+        if ($waba && strlen($waba) >= 10) {
+            $wabaPrefix = substr(preg_replace('/[^0-9]/', '', $waba), 0, 2);
+            $intlPhone = $wabaPrefix . substr($cleanPhone, 1);
+        } elseif (strlen($cleanPhone) === 11 && str_starts_with($cleanPhone, '01')) {
+            $intlPhone = '20' . substr($cleanPhone, 1);
+        }
+    }
+
     $messages = [];
     $seenIds = [];
     $rawDtRes = null;
@@ -216,7 +236,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
 
     // 1. Fetch remote messages from DoubleTick API
     try {
-        $dtRes = $dt->getChatMessages($cleanPhone, $waba);
+        $dtRes = $dt->getChatMessages($intlPhone, $waba);
         $rawDtRes = $dtRes;
 
         $remoteItems = [];
@@ -226,6 +246,22 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
             $remoteItems = $dtRes['data']['messages'];
         } elseif (!empty($dtRes['data']) && is_array($dtRes['data'])) {
             $remoteItems = $dtRes['data'];
+        }
+
+        // Fallback: if intlPhone returned no messages and cleanPhone is different, query cleanPhone
+        if (empty($remoteItems) && $intlPhone !== $cleanPhone) {
+            try {
+                $fallbackRes = $dt->getChatMessages($cleanPhone, $waba);
+                if (!empty($fallbackRes['messages']) && is_array($fallbackRes['messages'])) {
+                    $remoteItems = $fallbackRes['messages'];
+                    $rawDtRes = $fallbackRes;
+                } elseif (!empty($fallbackRes['data']['messages']) && is_array($fallbackRes['data']['messages'])) {
+                    $remoteItems = $fallbackRes['data']['messages'];
+                    $rawDtRes = $fallbackRes;
+                }
+            } catch (\Throwable $fbEx) {
+                // Ignore fallback error
+            }
         }
 
         foreach ($remoteItems as $m) {
@@ -331,13 +367,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
         $db = Database::getInstance();
         $stmt = $db->prepare("
             SELECT * FROM message_mappings 
-            WHERE customer_phone LIKE :phone OR customer_phone LIKE :clean_phone
+            WHERE customer_phone LIKE :phone 
+               OR customer_phone LIKE :clean_phone
+               OR customer_phone LIKE :intl_phone
             ORDER BY id ASC
         ");
         $phoneSuffix = substr($cleanPhone, -9);
         $stmt->execute([
             'phone' => '%' . $phoneSuffix,
             'clean_phone' => '%' . $cleanPhone . '%',
+            'intl_phone' => '%' . $intlPhone . '%',
         ]);
         $localRows = $stmt->fetchAll();
         $localRowsCount = count($localRows);
@@ -502,8 +541,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $phone = trim((string)($_POST['phone'] ?? ''));
     $text = trim((string)($_POST['text'] ?? ''));
     $memberId = (string)($_POST['member_id'] ?? '');
+    $domain = (string)($_POST['domain'] ?? '');
 
-    $b24 = $memberId ? BitrixClient::getByMemberId($memberId) : BitrixClient::getFirstActive();
+    $b24 = null;
+    if ($memberId) {
+        $b24 = BitrixClient::getByMemberId($memberId);
+    }
+    if (!$b24 && $domain) {
+        $b24 = BitrixClient::getByDomain($domain);
+    }
+    if (!$b24) {
+        $b24 = BitrixClient::getFirstActive();
+    }
     $apiKey = $b24 ? $b24->getDoubleTickApiKey() : $config['doubletick']['api_key'];
     $waba = $b24 ? $b24->getDoubleTickWaba() : $config['doubletick']['default_waba'];
 
@@ -568,13 +617,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $templateName = trim((string)($_POST['template_name'] ?? ''));
     $language = trim((string)($_POST['language'] ?? 'en'));
     $memberId = (string)($_POST['member_id'] ?? '');
+    $domain = (string)($_POST['domain'] ?? '');
 
     $params = [];
     if (!empty($_POST['param1'])) $params[] = trim((string)$_POST['param1']);
     if (!empty($_POST['param2'])) $params[] = trim((string)$_POST['param2']);
     if (!empty($_POST['param3'])) $params[] = trim((string)$_POST['param3']);
 
-    $b24 = $memberId ? BitrixClient::getByMemberId($memberId) : BitrixClient::getFirstActive();
+    $b24 = null;
+    if ($memberId) {
+        $b24 = BitrixClient::getByMemberId($memberId);
+    }
+    if (!$b24 && $domain) {
+        $b24 = BitrixClient::getByDomain($domain);
+    }
+    if (!$b24) {
+        $b24 = BitrixClient::getFirstActive();
+    }
     $apiKey = $b24 ? $b24->getDoubleTickApiKey() : $config['doubletick']['api_key'];
     $waba = $b24 ? $b24->getDoubleTickWaba() : $config['doubletick']['default_waba'];
 
@@ -637,7 +696,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 if (isset($_GET['action']) && $_GET['action'] === 'get_templates') {
     header('Content-Type: application/json');
     $memberId = (string)($_GET['member_id'] ?? '');
-    $b24 = $memberId ? BitrixClient::getByMemberId($memberId) : BitrixClient::getFirstActive();
+    $domain = (string)($_GET['domain'] ?? '');
+
+    $b24 = null;
+    if ($memberId) {
+        $b24 = BitrixClient::getByMemberId($memberId);
+    }
+    if (!$b24 && $domain) {
+        $b24 = BitrixClient::getByDomain($domain);
+    }
+    if (!$b24) {
+        $b24 = BitrixClient::getFirstActive();
+    }
     $apiKey = $b24 ? $b24->getDoubleTickApiKey() : $config['doubletick']['api_key'];
     $waba = $b24 ? $b24->getDoubleTickWaba() : $config['doubletick']['default_waba'];
 
@@ -659,8 +729,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_ai_summary') {
     header('Content-Type: application/json');
     $phone = (string)($_GET['phone'] ?? '');
     $memberId = (string)($_GET['member_id'] ?? '');
+    $domain = (string)($_GET['domain'] ?? '');
 
-    $b24 = $memberId ? BitrixClient::getByMemberId($memberId) : BitrixClient::getFirstActive();
+    $b24 = null;
+    if ($memberId) {
+        $b24 = BitrixClient::getByMemberId($memberId);
+    }
+    if (!$b24 && $domain) {
+        $b24 = BitrixClient::getByDomain($domain);
+    }
+    if (!$b24) {
+        $b24 = BitrixClient::getFirstActive();
+    }
     $apiKey = $b24 ? $b24->getDoubleTickApiKey() : $config['doubletick']['api_key'];
     $waba = $b24 ? $b24->getDoubleTickWaba() : $config['doubletick']['default_waba'];
 
@@ -1508,8 +1588,9 @@ header('Content-Security-Policy: frame-ancestors *');
     function loadChatHistory(forceScroll) {
         if (!currentPhone) return;
 
-        const url = 'placement_tab.php?action=get_chat_history&phone=' + encodeURIComponent(currentPhone) + '&member_id=' + encodeURIComponent(currentMemberId);
-        window.keenDebugStore.logReq('get_chat_history', { url, phone: currentPhone, memberId: currentMemberId });
+        const currentDomain = (window.keenDebugStore && window.keenDebugStore.crmInfo && window.keenDebugStore.crmInfo.domain) ? window.keenDebugStore.crmInfo.domain : '';
+        const url = 'placement_tab.php?action=get_chat_history&phone=' + encodeURIComponent(currentPhone) + '&member_id=' + encodeURIComponent(currentMemberId) + '&domain=' + encodeURIComponent(currentDomain);
+        window.keenDebugStore.logReq('get_chat_history', { url, phone: currentPhone, memberId: currentMemberId, domain: currentDomain });
 
         fetch(url)
             .then(res => res.json())
@@ -1683,13 +1764,15 @@ header('Content-Security-Policy: frame-ancestors *');
         input.value = '';
         input.style.height = 'auto';
 
+        const currentDomain = (window.keenDebugStore && window.keenDebugStore.crmInfo && window.keenDebugStore.crmInfo.domain) ? window.keenDebugStore.crmInfo.domain : '';
         const formData = new FormData();
         formData.append('action', 'send_direct_message');
         formData.append('phone', currentPhone);
         formData.append('text', text);
         formData.append('member_id', currentMemberId);
+        formData.append('domain', currentDomain);
 
-        window.keenDebugStore.logReq('send_direct_message', { phone: currentPhone, text: text, memberId: currentMemberId });
+        window.keenDebugStore.logReq('send_direct_message', { phone: currentPhone, text: text, memberId: currentMemberId, domain: currentDomain });
 
         fetch('placement_tab.php', { method: 'POST', body: formData })
             .then(res => res.json())
@@ -1743,8 +1826,9 @@ header('Content-Security-Policy: frame-ancestors *');
         document.getElementById('crm-template-status').style.display = 'none';
 
         if (!crmTemplatesLoaded) {
-            const tplUrl = 'placement_tab.php?action=get_templates&member_id=' + encodeURIComponent(currentMemberId);
-            window.keenDebugStore.logReq('get_templates', { url: tplUrl, memberId: currentMemberId });
+            const currentDomain = (window.keenDebugStore && window.keenDebugStore.crmInfo && window.keenDebugStore.crmInfo.domain) ? window.keenDebugStore.crmInfo.domain : '';
+            const tplUrl = 'placement_tab.php?action=get_templates&member_id=' + encodeURIComponent(currentMemberId) + '&domain=' + encodeURIComponent(currentDomain);
+            window.keenDebugStore.logReq('get_templates', { url: tplUrl, memberId: currentMemberId, domain: currentDomain });
 
             fetch(tplUrl)
                 .then(res => res.json())
@@ -1804,6 +1888,7 @@ header('Content-Security-Policy: frame-ancestors *');
         statusEl.style.color = '#93c5fd';
         statusEl.innerText = 'Sending WhatsApp template message...';
 
+        const currentDomain = (window.keenDebugStore && window.keenDebugStore.crmInfo && window.keenDebugStore.crmInfo.domain) ? window.keenDebugStore.crmInfo.domain : '';
         const formData = new FormData();
         formData.append('action', 'send_template');
         formData.append('phone', currentPhone);
@@ -1813,6 +1898,7 @@ header('Content-Security-Policy: frame-ancestors *');
         formData.append('param2', p2);
         formData.append('param3', p3);
         formData.append('member_id', currentMemberId);
+        formData.append('domain', currentDomain);
 
         window.keenDebugStore.logReq('send_template', {
             phone: currentPhone,
@@ -1821,7 +1907,8 @@ header('Content-Security-Policy: frame-ancestors *');
             param1: p1,
             param2: p2,
             param3: p3,
-            memberId: currentMemberId
+            memberId: currentMemberId,
+            domain: currentDomain
         });
 
         fetch('placement_tab.php', { method: 'POST', body: formData })

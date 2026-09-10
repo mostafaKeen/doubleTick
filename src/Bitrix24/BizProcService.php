@@ -169,6 +169,34 @@ class BizProcService
                     $messageId = (string)($res['messageId'] ?? $res['dtMessageId']);
                 }
             }
+
+            if ($status === 'success' && $messageId) {
+                try {
+                    $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
+                    $db = \DoubleTickB24\Core\Database::getInstance();
+                    $stmt = $db->prepare("
+                        INSERT INTO message_mappings (
+                            portal_id, b24_chat_id, b24_message_id, dt_message_id, whatsapp_message_id,
+                            customer_phone, direction, message_type, status, raw_data, created_at
+                        ) VALUES (
+                            :portal_id, 0, 0, :dt_id, NULL,
+                            :phone, 'OUTBOUND', :type, 'sent', :raw_data, datetime('now')
+                        )
+                    ");
+                    $stmt->execute([
+                        'portal_id' => $this->b24->getPortalId(),
+                        'dt_id' => $messageId,
+                        'phone' => $cleanPhone,
+                        'type' => ($code === 'dt_send_template') ? 'template' : 'text',
+                        'raw_data' => json_encode([
+                            'text' => ($code === 'dt_send_text' ? ($properties['message'] ?? '') : ($properties['template_name'] ?? '')),
+                            'time' => date('Y-m-d H:i:s'),
+                        ]),
+                    ]);
+                } catch (\Throwable $dbEx) {
+                    Logger::warning("Could not save bizproc message to message_mappings: " . $dbEx->getMessage());
+                }
+            }
         } catch (Exception $e) {
             Logger::error("Error executing bizproc activity {$code}: " . $e->getMessage());
         }

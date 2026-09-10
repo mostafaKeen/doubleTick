@@ -127,6 +127,40 @@ class WebhookProcessor
             $text = "[Received {$type} message]";
         }
 
+        // Always record incoming message in local DB for CRM placement tab
+        $cleanPhone = preg_replace('/[^0-9]/', '', $from);
+        try {
+            $db = Database::getInstance();
+            $check = $db->prepare("SELECT id FROM message_mappings WHERE dt_message_id = :id LIMIT 1");
+            $check->execute(['id' => $dtMessageId]);
+            if (!$check->fetch()) {
+                $ins = $db->prepare("
+                    INSERT INTO message_mappings (
+                        portal_id, b24_chat_id, b24_message_id, dt_message_id, whatsapp_message_id,
+                        customer_phone, direction, message_type, status, raw_data, created_at
+                    ) VALUES (
+                        :portal_id, 0, 0, :dt_id, :wa_id,
+                        :phone, 'INBOUND', :type, 'delivered', :raw_data, datetime('now')
+                    )
+                ");
+                $ins->execute([
+                    'portal_id' => $this->b24->getPortalId(),
+                    'dt_id' => $dtMessageId,
+                    'wa_id' => $whatsappMessageId,
+                    'phone' => $cleanPhone,
+                    'type' => empty($files) ? 'text' : 'media',
+                    'raw_data' => json_encode([
+                        'text' => $text,
+                        'files' => $files,
+                        'sender_name' => $customerName,
+                        'time' => date('Y-m-d H:i:s'),
+                    ]),
+                ]);
+            }
+        } catch (\Throwable $ex) {
+            Logger::warning("Could not pre-save inbound message: " . $ex->getMessage());
+        }
+
         $openLineId = $this->b24->getOpenLineId();
         if (!$openLineId) {
             // Find active line or use default line 1
@@ -161,8 +195,44 @@ class WebhookProcessor
         }
 
         $db = Database::getInstance();
-        $stmt = $db->prepare("UPDATE message_mappings SET status = :status WHERE dt_message_id = :id");
-        $stmt->execute(['status' => $status, 'id' => $dtMessageId]);
+        $stmt = $db->prepare("SELECT id FROM message_mappings WHERE dt_message_id = :id LIMIT 1");
+        $stmt->execute(['id' => $dtMessageId]);
+        $existing = $stmt->fetch();
+
+        if ($existing) {
+            $up = $db->prepare("UPDATE message_mappings SET status = :status WHERE dt_message_id = :id");
+            $up->execute(['status' => $status, 'id' => $dtMessageId]);
+        } else {
+            // If this message was sent from DoubleTick app/web, capture it as an OUTBOUND message
+            $to = preg_replace('/[^0-9]/', '', (string)($payload['to'] ?? $payload['customerPhone'] ?? ''));
+            if ($to) {
+                $text = '';
+                if (!empty($payload['message'])) {
+                    $msgObj = $payload['message'];
+                    if (is_array($msgObj)) {
+                        $text = (string)($msgObj['text'] ?? $msgObj['body'] ?? '');
+                    } elseif (is_string($msgObj)) {
+                        $text = $msgObj;
+                    }
+                }
+                $ins = $db->prepare("
+                    INSERT INTO message_mappings (
+                        portal_id, b24_chat_id, b24_message_id, dt_message_id, whatsapp_message_id,
+                        customer_phone, direction, message_type, status, raw_data, created_at
+                    ) VALUES (
+                        :portal_id, 0, 0, :dt_id, NULL,
+                        :phone, 'OUTBOUND', 'text', :status, :raw_data, datetime('now')
+                    )
+                ");
+                $ins->execute([
+                    'portal_id' => $this->b24->getPortalId(),
+                    'dt_id' => $dtMessageId,
+                    'phone' => $to,
+                    'status' => $status,
+                    'raw_data' => json_encode(['text' => $text, 'time' => date('Y-m-d H:i:s')]),
+                ]);
+            }
+        }
 
         return ['status' => 'updated', 'dt_message_id' => $dtMessageId, 'new_status' => $status];
     }

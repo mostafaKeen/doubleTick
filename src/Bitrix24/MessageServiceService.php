@@ -78,6 +78,32 @@ class MessageServiceService
 
             if (!empty($res['messageId']) || !empty($res['dtMessageId']) || (!empty($res['status']) && $res['status'] === 'SENT')) {
                 $this->updateStatus($b24MessageId, 'delivered');
+
+                // Persist outbound message in database for the CRM placement tab
+                try {
+                    $dtMsgId = (string)($res['messageId'] ?? $res['dtMessageId'] ?? ('timeline_' . uniqid()));
+                    $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
+                    $db = \DoubleTickB24\Core\Database::getInstance();
+                    $stmt = $db->prepare("
+                        INSERT INTO message_mappings (
+                            portal_id, b24_chat_id, b24_message_id, dt_message_id, whatsapp_message_id,
+                            customer_phone, direction, message_type, status, raw_data, created_at
+                        ) VALUES (
+                            :portal_id, 0, :b24_msg_id, :dt_id, NULL,
+                            :phone, 'OUTBOUND', :type, 'delivered', :raw_data, datetime('now')
+                        )
+                    ");
+                    $stmt->execute([
+                        'portal_id' => $this->b24->getPortalId(),
+                        'b24_msg_id' => (int)$b24MessageId,
+                        'dt_id' => $dtMsgId,
+                        'phone' => $cleanPhone,
+                        'type' => str_starts_with(strtolower($trimmed), 'template:') ? 'template' : 'text',
+                        'raw_data' => json_encode(['text' => $text, 'time' => date('Y-m-d H:i:s')]),
+                    ]);
+                } catch (\Throwable $dbEx) {
+                    Logger::warning("Could not save timeline message to message_mappings: " . $dbEx->getMessage());
+                }
             } else {
                 $errMsg = $res['error'] ?? 'Send failed';
                 Logger::warning("Timeline message delivery failed: " . (is_array($errMsg) ? json_encode($errMsg) : $errMsg), [
