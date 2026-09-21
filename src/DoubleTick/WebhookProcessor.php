@@ -229,9 +229,28 @@ class WebhookProcessor
 
         $openLineId = $this->b24->getOpenLineId();
         if (!$openLineId) {
-            // Find active line or use default line 1
-            $lines = $this->b24->call('imopenlines.config.get');
-            $openLineId = (int)($lines['result']['ID'] ?? 1);
+            // Find active line using imopenlines.config.list.get
+            try {
+                $linesRes = $this->b24->call('imopenlines.config.list.get');
+                $linesList = $linesRes['result'] ?? [];
+                if (is_array($linesList) && !empty($linesList)) {
+                    foreach ($linesList as $lItem) {
+                        if (isset($lItem['ID']) && ($lItem['ACTIVE'] ?? 'Y') === 'Y') {
+                            $openLineId = (int)$lItem['ID'];
+                            break;
+                        }
+                    }
+                    if (!$openLineId && isset($linesList[0]['ID'])) {
+                        $openLineId = (int)$linesList[0]['ID'];
+                    }
+                }
+            } catch (\Throwable $t) {
+                Logger::warning("Failed to fetch open lines list via REST: " . $t->getMessage());
+            }
+            if (!$openLineId) {
+                $openLineId = 1;
+            }
+            $this->b24->updateOpenLineId($openLineId);
         }
 
         // Forward to Bitrix24 Open Lines

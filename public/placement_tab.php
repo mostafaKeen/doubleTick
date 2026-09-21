@@ -929,10 +929,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $memberId = (string)($_POST['member_id'] ?? '');
     $domain = (string)($_POST['domain'] ?? '');
 
+    $templateData = [];
+    if (!empty($_POST['template_data'])) {
+        $decoded = json_decode((string)$_POST['template_data'], true);
+        if (is_array($decoded)) {
+            $templateData = $decoded;
+        }
+    }
+
     $params = [];
-    if (!empty($_POST['param1'])) $params[] = trim((string)$_POST['param1']);
-    if (!empty($_POST['param2'])) $params[] = trim((string)$_POST['param2']);
-    if (!empty($_POST['param3'])) $params[] = trim((string)$_POST['param3']);
+    if (!empty($_POST['params'])) {
+        $decodedParams = json_decode((string)$_POST['params'], true);
+        if (is_array($decodedParams)) {
+            $params = array_values(array_map('strval', $decodedParams));
+        }
+    }
+    // Fallback for legacy param1, param2, param3...
+    if (empty($params)) {
+        for ($i = 1; $i <= 20; $i++) {
+            if (isset($_POST["param{$i}"]) && trim((string)$_POST["param{$i}"]) !== '') {
+                $params[] = trim((string)$_POST["param{$i}"]);
+            }
+        }
+    }
+
+    // If templateData wasn't explicitly structured, wrap body placeholders if params exist
+    if (empty($templateData) && !empty($params)) {
+        $templateData = [
+            'body' => [
+                'placeholders' => $params
+            ]
+        ];
+    }
 
     $b24 = null;
     if ($memberId) {
@@ -954,7 +982,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     try {
         $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
-        $res = $dt->sendTemplateMessage($phone, $templateName, $language, $params, $waba);
+        $res = $dt->sendTemplateMessage($phone, $templateName, $language, $templateData, $waba);
         if (!empty($res['error']) || (!empty($res['status_code']) && $res['status_code'] >= 400)) {
             $errDetail = is_array($res['error']) ? json_encode($res['error']) : (string)$res['error'];
             if (!empty($res['raw']['message'])) {
@@ -985,6 +1013,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         'text' => "📋 Template: {$templateName}",
                         'template_name' => $templateName,
                         'params' => $params,
+                        'template_data' => $templateData,
                         'time' => date('Y-m-d H:i:s')
                     ]),
                 ]);
@@ -1489,8 +1518,10 @@ header('Content-Security-Policy: frame-ancestors *');
             border: 1px solid var(--card-border);
             border-radius: 16px;
             width: 90%;
-            max-width: 520px;
-            margin: 40px auto;
+            max-width: 580px;
+            max-height: 88vh;
+            overflow-y: auto;
+            margin: 30px auto;
             padding: 24px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.5);
             animation: modalPop 0.2s ease;
@@ -1503,6 +1534,78 @@ header('Content-Security-Policy: frame-ancestors *');
         .form-group label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
         .form-control { width: 100%; padding: 10px 12px; background: #0f172a; border: 1px solid var(--card-border); border-radius: 8px; color: #fff; font-size: 13.5px; outline: none; }
         .form-control:focus { border-color: var(--primary); }
+
+        /* Template Live Preview Card */
+        .template-preview-bubble {
+            background: #005c4b;
+            color: #e9edef;
+            padding: 12px 14px;
+            border-radius: 10px 10px 2px 10px;
+            font-size: 13px;
+            line-height: 1.5;
+            position: relative;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .template-preview-header {
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: #fff;
+            font-size: 13.5px;
+        }
+        .template-preview-media {
+            margin-bottom: 8px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            color: #a7f3d0;
+            font-size: 12px;
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+            gap: 6px;
+        }
+        .template-preview-footer {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 8px;
+        }
+        .template-preview-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+            padding-top: 8px;
+        }
+        .template-preview-btn {
+            background: rgba(255, 255, 255, 0.08);
+            color: #38bdf8;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 12px;
+            text-align: center;
+            font-weight: 500;
+        }
+        .tpl-var-highlight {
+            background: rgba(16, 185, 129, 0.35);
+            color: #a7f3d0;
+            padding: 1px 4px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .tpl-var-empty {
+            background: rgba(245, 158, 11, 0.25);
+            color: #fde68a;
+            padding: 1px 4px;
+            border-radius: 4px;
+            font-style: italic;
+        }
 
         /* WhatsApp-style Audio Player */
         .wa-audio-player {
@@ -2021,17 +2124,26 @@ header('Content-Security-Policy: frame-ancestors *');
             </div>
         </div>
 
-        <div class="form-group">
-            <label>Parameter 1 (Customer Name / Order ID)</label>
-            <input type="text" id="crm-param1" class="form-control" placeholder="e.g. Mostafa">
+        <!-- Dynamic Template Variables -->
+        <div id="crm-template-dynamic-fields" style="margin-top: 6px;">
+            <div id="crm-template-dynamic-hint" style="font-size: 12.5px; color: var(--text-muted); font-style: italic; margin-bottom: 12px; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px dashed rgba(255,255,255,0.12);">
+                Select an approved template above to view and fill its variables.
+            </div>
         </div>
-        <div class="form-group">
-            <label>Parameter 2 (Optional)</label>
-            <input type="text" id="crm-param2" class="form-control" placeholder="e.g. Your shipment has arrived">
-        </div>
-        <div class="form-group">
-            <label>Parameter 3 (Optional)</label>
-            <input type="text" id="crm-param3" class="form-control" placeholder="e.g. Tracking link or agent name">
+
+        <!-- Live WhatsApp Message Preview -->
+        <div id="crm-template-preview-wrapper" style="display: none; margin-top: 10px; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600;">
+                    Live WhatsApp Preview
+                </label>
+                <span id="crm-template-var-count-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(63, 144, 109, 0.2); color: #6ee7b7;">
+                    0 variables
+                </span>
+            </div>
+            <div id="crm-template-preview" class="template-preview-bubble">
+                <!-- Live preview generated here -->
+            </div>
         </div>
 
         <div id="crm-template-status" style="display: none; padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 14px;"></div>
@@ -2184,7 +2296,8 @@ header('Content-Security-Policy: frame-ancestors *');
 
         document.getElementById('contact-name').innerText = name;
         document.getElementById('contact-phone').innerText = phone;
-        document.getElementById('crm-param1').value = name;
+        const p1 = document.getElementById('crm-param1');
+        if (p1) p1.value = name;
 
         // Init avatar initials
         const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'WA';
@@ -2817,6 +2930,10 @@ header('Content-Security-Policy: frame-ancestors *');
     // Template Modal Functions
     // -------------------------------------------------------------
     let crmTemplatesLoaded = false;
+    window.crmTemplatesMap = {};
+    window.currentSelectedTemplateParsed = null;
+    window.currentSelectedTemplate = null;
+
     function openTemplateModal() {
         if (!currentPhone) {
             alert('Please wait until contact phone number is loaded.');
@@ -2843,11 +2960,18 @@ header('Content-Security-Policy: frame-ancestors *');
                     if (data.success && data.templates && Array.isArray(data.templates)) {
                         const sel = document.getElementById('crm-template-select');
                         sel.innerHTML = '<option value="">-- Choose from approved templates --</option>';
+                        window.crmTemplatesMap = {};
                         data.templates.forEach(tpl => {
+                            const tName = tpl.name || '';
+                            const tLang = tpl.language || 'en';
+                            const key = tName + '__' + tLang;
+                            window.crmTemplatesMap[key] = tpl;
+
                             const opt = document.createElement('option');
-                            opt.value = tpl.name || '';
-                            opt.setAttribute('data-lang', tpl.language || 'en');
-                            opt.textContent = (tpl.name || '') + ' (' + (tpl.language || 'en') + ') - ' + (tpl.category || 'TEMPLATE');
+                            opt.value = key;
+                            opt.setAttribute('data-name', tName);
+                            opt.setAttribute('data-lang', tLang);
+                            opt.textContent = tName + ' (' + tLang + ') - ' + (tpl.category || 'TEMPLATE');
                             sel.appendChild(opt);
                         });
                         crmTemplatesLoaded = true;
@@ -2863,22 +2987,334 @@ header('Content-Security-Policy: frame-ancestors *');
         document.getElementById('template-modal').style.display = 'none';
     }
 
+    function extractTemplateVariables(tpl) {
+        const result = {
+            header: null,
+            body: { text: '', variables: [] },
+            footer: { text: '' },
+            buttons: []
+        };
+
+        if (!tpl || !Array.isArray(tpl.components)) return result;
+
+        tpl.components.forEach(comp => {
+            const cType = (comp.type || '').toUpperCase();
+            if (cType === 'HEADER') {
+                const format = (comp.format || 'TEXT').toUpperCase();
+                result.header = {
+                    format: format,
+                    text: comp.text || '',
+                    variables: []
+                };
+                if (format === 'TEXT') {
+                    const headerVars = [];
+                    if (Array.isArray(comp.variables)) {
+                        comp.variables.forEach((v, idx) => {
+                            const vName = (typeof v === 'object' && v !== null) ? (v.name || String(idx + 1)) : String(v);
+                            if (!headerVars.includes(vName)) headerVars.push(vName);
+                        });
+                    }
+                    const textMatches = (comp.text || '').match(/\{\{([^{}]+)\}\}/g) || [];
+                    textMatches.forEach(m => {
+                        const raw = m.replace(/[\{\}]/g, '').trim();
+                        if (!headerVars.includes(raw)) headerVars.push(raw);
+                    });
+                    result.header.variables = headerVars;
+                }
+            } else if (cType === 'BODY') {
+                result.body.text = comp.text || '';
+                const bodyVars = [];
+                const textMatches = (comp.text || '').match(/\{\{([^{}]+)\}\}/g) || [];
+                textMatches.forEach(m => {
+                    const raw = m.replace(/[\{\}]/g, '').trim();
+                    if (!bodyVars.includes(raw)) bodyVars.push(raw);
+                });
+                if (bodyVars.length === 0 && Array.isArray(comp.variables)) {
+                    comp.variables.forEach((v, idx) => {
+                        const vName = (typeof v === 'object' && v !== null) ? (v.name || String(idx + 1)) : String(v);
+                        if (!bodyVars.includes(vName)) bodyVars.push(vName);
+                    });
+                }
+                result.body.variables = bodyVars;
+            } else if (cType === 'FOOTER') {
+                result.footer.text = comp.text || '';
+            } else if (cType === 'BUTTON' && Array.isArray(comp.buttons)) {
+                comp.buttons.forEach((btn, bIdx) => {
+                    const bType = (btn.type || '').toUpperCase();
+                    const bUrl = btn.url || '';
+                    const hasParam = bType === 'URL' && (bUrl.includes('{{') || (btn.urlType && btn.urlType.toUpperCase() === 'DYNAMIC'));
+                    result.buttons.push({
+                        index: bIdx,
+                        type: bType,
+                        text: btn.text || '',
+                        url: bUrl,
+                        hasParam: hasParam
+                    });
+                });
+            }
+        });
+
+        return result;
+    }
+
     function onCrmTemplateChange(sel) {
-        if (sel.value) {
-            document.getElementById('crm-template-name').value = sel.value;
-            const opt = sel.options[sel.selectedIndex];
-            if (opt && opt.getAttribute('data-lang')) {
-                document.getElementById('crm-template-lang').value = opt.getAttribute('data-lang');
+        const key = sel.value;
+        const container = document.getElementById('crm-template-dynamic-fields');
+        const previewWrapper = document.getElementById('crm-template-preview-wrapper');
+
+        if (!key) {
+            document.getElementById('crm-template-name').value = '';
+            container.innerHTML = `
+                <div id="crm-template-dynamic-hint" style="font-size: 12.5px; color: var(--text-muted); font-style: italic; margin-bottom: 12px; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px dashed rgba(255,255,255,0.12);">
+                    Select an approved template above to view and fill its variables.
+                </div>
+            `;
+            if (previewWrapper) previewWrapper.style.display = 'none';
+            window.currentSelectedTemplateParsed = null;
+            window.currentSelectedTemplate = null;
+            return;
+        }
+
+        const tpl = (window.crmTemplatesMap && window.crmTemplatesMap[key]) ? window.crmTemplatesMap[key] : null;
+        const opt = sel.options[sel.selectedIndex];
+        const tplName = opt ? (opt.getAttribute('data-name') || (tpl && tpl.name) || '') : ((tpl && tpl.name) || '');
+        const tplLang = opt ? (opt.getAttribute('data-lang') || (tpl && tpl.language) || 'en') : ((tpl && tpl.language) || 'en');
+
+        document.getElementById('crm-template-name').value = tplName;
+        document.getElementById('crm-template-lang').value = tplLang;
+
+        if (!tpl) {
+            renderManualFallbackFields();
+            return;
+        }
+
+        const parsed = extractTemplateVariables(tpl);
+        window.currentSelectedTemplateParsed = parsed;
+        window.currentSelectedTemplate = tpl;
+
+        renderTemplateVariableFields(parsed);
+        updateTemplateLivePreview(parsed, tpl);
+    }
+
+    function renderTemplateVariableFields(parsed) {
+        const container = document.getElementById('crm-template-dynamic-fields');
+        container.innerHTML = '';
+
+        let totalVars = 0;
+        const bodyVars = parsed.body.variables || [];
+        const header = parsed.header;
+        const buttonsWithParam = (parsed.buttons || []).filter(b => b.hasParam);
+
+        // 1. Header inputs
+        if (header) {
+            if (header.format === 'IMAGE' || header.format === 'VIDEO' || header.format === 'DOCUMENT') {
+                totalVars++;
+                const icon = header.format === 'IMAGE' ? '🖼️' : (header.format === 'VIDEO' ? '🎥' : '📄');
+                const grp = document.createElement('div');
+                grp.className = 'form-group';
+                grp.innerHTML = `
+                    <label style="display: flex; align-items: center; gap: 6px;">
+                        <span>${icon}</span>
+                        <span>Header ${header.format} URL <span style="color: var(--danger);">*</span></span>
+                    </label>
+                    <input type="url" id="crm-tpl-header-media" class="form-control" placeholder="https://example.com/file.${header.format === 'IMAGE' ? 'jpg' : (header.format === 'VIDEO' ? 'mp4' : 'pdf')}" oninput="onTplFieldInput()">
+                `;
+                container.appendChild(grp);
+
+                if (header.format === 'DOCUMENT') {
+                    const fnGrp = document.createElement('div');
+                    fnGrp.className = 'form-group';
+                    fnGrp.innerHTML = `
+                        <label>Document File Name (Optional)</label>
+                        <input type="text" id="crm-tpl-header-filename" class="form-control" placeholder="e.g. statement.pdf" oninput="onTplFieldInput()">
+                    `;
+                    container.appendChild(fnGrp);
+                }
+            } else if (header.format === 'TEXT' && header.variables.length > 0) {
+                header.variables.forEach((hVar, hIdx) => {
+                    totalVars++;
+                    const grp = document.createElement('div');
+                    grp.className = 'form-group';
+                    grp.innerHTML = `
+                        <label>Header Parameter ({{${escapeHtml(hVar)}}})</label>
+                        <input type="text" id="crm-tpl-header-var-${hIdx}" class="form-control" placeholder="Value for {{${escapeHtml(hVar)}}}" oninput="onTplFieldInput()">
+                    `;
+                    container.appendChild(grp);
+                });
             }
         }
+
+        // 2. Body inputs
+        if (bodyVars.length > 0) {
+            bodyVars.forEach((varName, idx) => {
+                totalVars++;
+                const grp = document.createElement('div');
+                grp.className = 'form-group';
+
+                let label = `Parameter ${idx + 1} ({{${escapeHtml(varName)}}})`;
+                let defaultValue = '';
+                let placeholder = `e.g. Value for {{${escapeHtml(varName)}}}`;
+
+                const varLower = String(varName).toLowerCase();
+                const bodyText = parsed.body.text || '';
+                const isNameVar = varLower.includes('name') || (idx === 0 && /(?:hi|hello|dear|welcome)\s*\{\{/i.test(bodyText));
+                const isOrderVar = varLower.includes('order') || varLower.includes('id') || varLower.includes('num');
+                const isDateVar = varLower.includes('date') || varLower.includes('time');
+                const isAmountVar = varLower.includes('price') || varLower.includes('amount') || varLower.includes('total');
+
+                if (isNameVar) {
+                    label = `Parameter ${idx + 1}: Customer Name ({{${escapeHtml(varName)}}})`;
+                    defaultValue = currentContactName || '';
+                    placeholder = 'e.g. ' + (currentContactName || 'Customer Name');
+                } else if (isOrderVar) {
+                    label = `Parameter ${idx + 1}: Order ID / Number ({{${escapeHtml(varName)}}})`;
+                    placeholder = 'e.g. #10294';
+                } else if (isDateVar) {
+                    label = `Parameter ${idx + 1}: Date / Time ({{${escapeHtml(varName)}}})`;
+                    placeholder = 'e.g. Tomorrow at 3:00 PM';
+                } else if (isAmountVar) {
+                    label = `Parameter ${idx + 1}: Amount / Price ({{${escapeHtml(varName)}}})`;
+                    placeholder = 'e.g. $49.99';
+                }
+
+                grp.innerHTML = `
+                    <label>${label}</label>
+                    <input type="text" id="crm-tpl-body-var-${idx}" data-var-token="${escapeHtml(varName)}" class="form-control crm-tpl-body-input" value="${escapeHtml(defaultValue)}" placeholder="${placeholder}" oninput="onTplFieldInput()">
+                `;
+                container.appendChild(grp);
+            });
+        }
+
+        // 3. Dynamic URL Button inputs
+        if (buttonsWithParam.length > 0) {
+            buttonsWithParam.forEach(btn => {
+                totalVars++;
+                const grp = document.createElement('div');
+                grp.className = 'form-group';
+                grp.innerHTML = `
+                    <label>Button Link Parameter (${escapeHtml(btn.text || 'Action Button')})</label>
+                    <input type="text" id="crm-tpl-btn-var-${btn.index}" class="form-control" placeholder="e.g. tracking-code-or-id" oninput="onTplFieldInput()">
+                `;
+                container.appendChild(grp);
+            });
+        }
+
+        // Zero variables notice
+        if (totalVars === 0) {
+            const notice = document.createElement('div');
+            notice.style.cssText = 'padding: 10px 14px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; font-size: 13px; color: #6ee7b7; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;';
+            notice.innerHTML = '<span>✓</span> <span><strong>No variables required.</strong> This message will be delivered exactly as approved by WhatsApp.</span>';
+            container.appendChild(notice);
+        }
+
+        // Update count badge
+        const badge = document.getElementById('crm-template-var-count-badge');
+        if (badge) {
+            badge.innerText = `${totalVars} variable${totalVars === 1 ? '' : 's'}`;
+        }
+    }
+
+    function renderManualFallbackFields() {
+        const container = document.getElementById('crm-template-dynamic-fields');
+        container.innerHTML = `
+            <div id="crm-manual-params-list">
+                <div class="form-group">
+                    <label>Parameter 1 (Customer Name)</label>
+                    <input type="text" id="crm-tpl-body-var-0" class="form-control crm-tpl-body-input" value="${escapeHtml(currentContactName || '')}" placeholder="e.g. ${escapeHtml(currentContactName || 'Customer Name')}">
+                </div>
+                <div class="form-group">
+                    <label>Parameter 2 (Optional)</label>
+                    <input type="text" id="crm-tpl-body-var-1" class="form-control crm-tpl-body-input" placeholder="e.g. Order ID or shipment detail">
+                </div>
+            </div>
+            <button type="button" class="btn btn-secondary" style="font-size: 11.5px; padding: 4px 10px; margin-bottom: 12px;" onclick="addManualParamField()">+ Add Another Parameter</button>
+        `;
+        const previewWrapper = document.getElementById('crm-template-preview-wrapper');
+        if (previewWrapper) previewWrapper.style.display = 'none';
+    }
+
+    function addManualParamField() {
+        const list = document.getElementById('crm-manual-params-list');
+        if (!list) return;
+        const currentCount = list.querySelectorAll('.crm-tpl-body-input').length;
+        const nextIdx = currentCount;
+        const grp = document.createElement('div');
+        grp.className = 'form-group';
+        grp.innerHTML = `
+            <label>Parameter ${nextIdx + 1} (Optional)</label>
+            <input type="text" id="crm-tpl-body-var-${nextIdx}" class="form-control crm-tpl-body-input" placeholder="e.g. Value for parameter ${nextIdx + 1}">
+        `;
+        list.appendChild(grp);
+    }
+
+    function onTplFieldInput() {
+        if (window.currentSelectedTemplateParsed && window.currentSelectedTemplate) {
+            updateTemplateLivePreview(window.currentSelectedTemplateParsed, window.currentSelectedTemplate);
+        }
+    }
+
+    function updateTemplateLivePreview(parsed, tpl) {
+        const previewWrapper = document.getElementById('crm-template-preview-wrapper');
+        const previewEl = document.getElementById('crm-template-preview');
+        if (!previewWrapper || !previewEl || !parsed) return;
+
+        previewWrapper.style.display = 'block';
+
+        let html = '';
+
+        // Header preview
+        if (parsed.header) {
+            if (parsed.header.format === 'IMAGE' || parsed.header.format === 'VIDEO' || parsed.header.format === 'DOCUMENT') {
+                const mediaVal = document.getElementById('crm-tpl-header-media') ? document.getElementById('crm-tpl-header-media').value.trim() : '';
+                const icon = parsed.header.format === 'IMAGE' ? '🖼️ Image Header' : (parsed.header.format === 'VIDEO' ? '🎥 Video Header' : '📄 Document Header');
+                html += `<div class="template-preview-media">
+                    <span>${icon}:</span>
+                    <span>${mediaVal ? escapeHtml(mediaVal) : '<em style="opacity: 0.6;">(URL to be provided)</em>'}</span>
+                </div>`;
+            } else if (parsed.header.format === 'TEXT') {
+                let hText = escapeHtml(parsed.header.text || '');
+                (parsed.header.variables || []).forEach((hVar, hIdx) => {
+                    const hInput = document.getElementById(`crm-tpl-header-var-${hIdx}`);
+                    const val = hInput ? hInput.value.trim() : '';
+                    const rep = val ? `<span class="tpl-var-highlight">${escapeHtml(val)}</span>` : `<span class="tpl-var-empty">{{${escapeHtml(hVar)}}}</span>`;
+                    hText = hText.replace(new RegExp('\\{\\{' + hVar + '\\}\\}', 'g'), rep);
+                });
+                if (hText) {
+                    html += `<div class="template-preview-header">${hText}</div>`;
+                }
+            }
+        }
+
+        // Body preview
+        let bText = escapeHtml(parsed.body.text || '');
+        (parsed.body.variables || []).forEach((bVar, bIdx) => {
+            const inputEl = document.getElementById(`crm-tpl-body-var-${bIdx}`);
+            const val = inputEl ? inputEl.value.trim() : '';
+            const rep = val ? `<span class="tpl-var-highlight">${escapeHtml(val)}</span>` : `<span class="tpl-var-empty">{{${escapeHtml(bVar)}}}</span>`;
+            bText = bText.replace(new RegExp('\\{\\{' + bVar + '\\}\\}', 'g'), rep);
+        });
+        html += `<div>${bText}</div>`;
+
+        // Footer preview
+        if (parsed.footer && parsed.footer.text) {
+            html += `<div class="template-preview-footer">${escapeHtml(parsed.footer.text)}</div>`;
+        }
+
+        // Buttons preview
+        if (parsed.buttons && parsed.buttons.length > 0) {
+            html += '<div class="template-preview-buttons">';
+            parsed.buttons.forEach(btn => {
+                html += `<div class="template-preview-btn">🔗 ${escapeHtml(btn.text || 'Action Button')}</div>`;
+            });
+            html += '</div>';
+        }
+
+        previewEl.innerHTML = html;
     }
 
     function submitCrmTemplate() {
         const tplName = document.getElementById('crm-template-name').value.trim();
         const tplLang = document.getElementById('crm-template-lang').value.trim() || 'en';
-        const p1 = document.getElementById('crm-param1').value.trim();
-        const p2 = document.getElementById('crm-param2').value.trim();
-        const p3 = document.getElementById('crm-param3').value.trim();
         const statusEl = document.getElementById('crm-template-status');
         const btn = document.getElementById('btn-send-crm-tpl');
 
@@ -2886,6 +3322,63 @@ header('Content-Security-Policy: frame-ancestors *');
             alert('Please select or specify a template name.');
             return;
         }
+
+        // Collect body placeholders
+        const bodyInputs = document.querySelectorAll('.crm-tpl-body-input');
+        const placeholders = [];
+        bodyInputs.forEach(inp => {
+            placeholders.push(inp.value.trim());
+        });
+
+        // Collect header data
+        let headerData = null;
+        const mediaInput = document.getElementById('crm-tpl-header-media');
+        if (mediaInput && window.currentSelectedTemplateParsed && window.currentSelectedTemplateParsed.header) {
+            const format = window.currentSelectedTemplateParsed.header.format;
+            const mediaUrl = mediaInput.value.trim();
+            if (!mediaUrl) {
+                alert(`Please provide a valid Header ${format} URL.`);
+                mediaInput.focus();
+                return;
+            }
+            headerData = {
+                type: format,
+                mediaUrl: mediaUrl
+            };
+            const docFn = document.getElementById('crm-tpl-header-filename') ? document.getElementById('crm-tpl-header-filename').value.trim() : '';
+            if (docFn) headerData.filename = docFn;
+        } else if (window.currentSelectedTemplateParsed && window.currentSelectedTemplateParsed.header && window.currentSelectedTemplateParsed.header.format === 'TEXT' && window.currentSelectedTemplateParsed.header.variables.length > 0) {
+            const hVal = document.getElementById('crm-tpl-header-var-0') ? document.getElementById('crm-tpl-header-var-0').value.trim() : '';
+            if (hVal) {
+                headerData = {
+                    type: 'TEXT',
+                    placeholder: hVal
+                };
+            }
+        }
+
+        // Collect button parameters
+        const buttonParams = [];
+        if (window.currentSelectedTemplateParsed && window.currentSelectedTemplateParsed.buttons) {
+            window.currentSelectedTemplateParsed.buttons.forEach(b => {
+                if (b.hasParam) {
+                    const btnInput = document.getElementById(`crm-tpl-btn-var-${b.index}`);
+                    const bVal = btnInput ? btnInput.value.trim() : '';
+                    if (bVal) {
+                        buttonParams.push({
+                            type: 'URL',
+                            parameter: bVal
+                        });
+                    }
+                }
+            });
+        }
+
+        // Build templateData object
+        const templateData = {};
+        if (headerData) templateData.header = headerData;
+        if (placeholders.length > 0) templateData.body = { placeholders: placeholders };
+        if (buttonParams.length > 0) templateData.buttons = buttonParams;
 
         btn.disabled = true;
         btn.innerText = 'Sending...';
@@ -2900,9 +3393,12 @@ header('Content-Security-Policy: frame-ancestors *');
         formData.append('phone', currentPhone);
         formData.append('template_name', tplName);
         formData.append('language', tplLang);
-        formData.append('param1', p1);
-        formData.append('param2', p2);
-        formData.append('param3', p3);
+        formData.append('params', JSON.stringify(placeholders));
+        formData.append('template_data', JSON.stringify(templateData));
+        // Backward compatibility
+        if (placeholders[0]) formData.append('param1', placeholders[0]);
+        if (placeholders[1]) formData.append('param2', placeholders[1]);
+        if (placeholders[2]) formData.append('param3', placeholders[2]);
         formData.append('member_id', currentMemberId);
         formData.append('domain', currentDomain);
 
@@ -2910,9 +3406,8 @@ header('Content-Security-Policy: frame-ancestors *');
             phone: currentPhone,
             templateName: tplName,
             language: tplLang,
-            param1: p1,
-            param2: p2,
-            param3: p3,
+            placeholders: placeholders,
+            templateData: templateData,
             memberId: currentMemberId,
             domain: currentDomain
         });

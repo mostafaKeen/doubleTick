@@ -145,14 +145,28 @@ class BizProcService
                 $templateName = (string)($properties['template_name'] ?? '');
                 $language = (string)($properties['language'] ?? 'en');
                 $placeholders = [];
-                foreach (['param_1', 'param_2', 'param_3'] as $idx => $paramKey) {
-                    if (!empty($properties[$paramKey])) {
-                        $placeholders[] = (string)$properties[$paramKey];
+                if (!empty($properties['template_params_json'])) {
+                    $decoded = json_decode((string)$properties['template_params_json'], true);
+                    if (is_array($decoded)) {
+                        $placeholders = array_values(array_map('strval', $decoded));
+                    }
+                }
+                if (empty($placeholders)) {
+                    foreach (['param_1', 'param_2', 'param_3', 'param_4', 'param_5', 'param_6'] as $paramKey) {
+                        if (isset($properties[$paramKey]) && trim((string)$properties[$paramKey]) !== '') {
+                            $placeholders[] = (string)$properties[$paramKey];
+                        }
                     }
                 }
 
                 $templateData = [];
-                if (!empty($placeholders)) {
+                if (!empty($properties['template_data_json'])) {
+                    $decodedTd = json_decode((string)$properties['template_data_json'], true);
+                    if (is_array($decodedTd)) {
+                        $templateData = $decodedTd;
+                    }
+                }
+                if (empty($templateData) && !empty($placeholders)) {
                     $templateData['body'] = ['placeholders' => $placeholders];
                 }
 

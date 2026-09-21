@@ -63,7 +63,19 @@ class BitrixClient
 
     public function getOpenLineId(): ?int
     {
-        return isset($this->portal['open_line_id']) ? (int)$this->portal['open_line_id'] : null;
+        return !empty($this->portal['open_line_id']) ? (int)$this->portal['open_line_id'] : null;
+    }
+
+    public function updateOpenLineId(int $lineId): void
+    {
+        $this->portal['open_line_id'] = $lineId;
+        try {
+            $db = \DoubleTickB24\Core\Database::getInstance();
+            $stmt = $db->prepare("UPDATE b24_portals SET open_line_id = :line, updated_at = datetime('now') WHERE id = :id");
+            $stmt->execute(['line' => $lineId, 'id' => $this->getPortalId()]);
+        } catch (\Throwable $e) {
+            \DoubleTickB24\Core\Logger::error("Failed to update portal open_line_id: " . $e->getMessage());
+        }
     }
 
     public function getDoubleTickApiKey(): ?string

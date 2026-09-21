@@ -123,6 +123,59 @@ class ImConnectorService
         $res = $this->b24->call('imconnector.send.messages', $b24Payload);
         Logger::info("imconnector.send.messages response", ['res' => $res, 'dt_id' => $dtMessageId]);
 
+        // Check for NOT_ACTIVE_LINE or inactive channel error
+        $isInactiveError = false;
+        if (!empty($res['error']) && ($res['error'] === 'NOT_ACTIVE_LINE' || str_contains((string)$res['error'], 'NOT_ACTIVE_LINE'))) {
+            $isInactiveError = true;
+        }
+        if (!empty($res['error_description']) && str_contains((string)$res['error_description'], 'inactive or does not exist')) {
+            $isInactiveError = true;
+        }
+
+        if ($isInactiveError) {
+            Logger::warning("Connector {$this->connectorId} inactive or line {$lineId} invalid. Attempting auto-activation...");
+            
+            // Step 1: Try activating the specified line
+            try {
+                $this->activate($lineId, true);
+                $res = $this->b24->call('imconnector.send.messages', $b24Payload);
+                Logger::info("imconnector.send.messages response after activation", ['res' => $res]);
+                if (empty($res['error'])) {
+                    $isInactiveError = false;
+                }
+            } catch (\Throwable $actEx) {
+                Logger::warning("Direct activation of line {$lineId} failed: " . $actEx->getMessage());
+            }
+
+            // Step 2: Fallback to querying active open lines from portal if specified line fails
+            if ($isInactiveError) {
+                try {
+                    $linesRes = $this->b24->call('imopenlines.config.list.get');
+                    $linesList = $linesRes['result'] ?? [];
+                    if (is_array($linesList) && !empty($linesList)) {
+                        foreach ($linesList as $lItem) {
+                            $targetLineId = (int)($lItem['ID'] ?? 0);
+                            if ($targetLineId <= 0) continue;
+
+                            Logger::info("Attempting auto-activation on fallback Open Line ID {$targetLineId}...");
+                            $this->activate($targetLineId, true);
+                            
+                            $b24Payload['LINE'] = $targetLineId;
+                            $res = $this->b24->call('imconnector.send.messages', $b24Payload);
+                            Logger::info("imconnector.send.messages fallback response", ['line' => $targetLineId, 'res' => $res]);
+
+                            if (empty($res['error'])) {
+                                $this->b24->updateOpenLineId($targetLineId);
+                                break;
+                            }
+                        }
+                    }
+                } catch (\Throwable $fallbackEx) {
+                    Logger::error("Fallback line activation failed: " . $fallbackEx->getMessage());
+                }
+            }
+        }
+
         // Save mapping
         if (!empty($res['result']['SUCCESS']) && !empty($res['result']['DATA'])) {
             $db = Database::getInstance();

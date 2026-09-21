@@ -127,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $waba = $b24 ? ($b24->getDoubleTickWaba() ?: $config['doubletick']['default_waba']) : $config['doubletick']['default_waba'];
 
         $params = [];
-        for ($i = 1; $i <= 5; $i++) {
+        for ($i = 1; $i <= 20; $i++) {
             $val = trim($_POST["template_param_{$i}"] ?? '');
             if ($val !== '') {
                 $params[] = $val;
@@ -429,26 +429,89 @@ $recentWebhooks = $db->query("SELECT * FROM webhook_logs ORDER BY id DESC LIMIT 
                     <label>Language Code</label>
                     <input type="text" id="template_lang_input" name="template_language" class="form-control" value="en" placeholder="e.g. en, ar, es">
                 </div>
-                <div class="form-group">
-                    <label>Placeholder 1 ({{1}} - optional)</label>
-                    <input type="text" name="template_param_1" class="form-control" placeholder="Value for {{1}}">
+                <div id="admin_template_vars_container">
+                    <div class="form-group">
+                        <label>Placeholder 1 ({{1}} - optional)</label>
+                        <input type="text" name="template_param_1" class="form-control" placeholder="Value for {{1}}">
+                    </div>
+                    <div class="form-group">
+                        <label>Placeholder 2 ({{2}} - optional)</label>
+                        <input type="text" name="template_param_2" class="form-control" placeholder="Value for {{2}}">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Placeholder 2 ({{2}} - optional)</label>
-                    <input type="text" name="template_param_2" class="form-control" placeholder="Value for {{2}}">
+
+                <div id="admin_template_preview_box" style="display: none; margin-bottom: 14px; padding: 12px; background: #0b141a; border: 1px solid #1e293b; border-radius: 8px;">
+                    <label style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; display: block; margin-bottom: 6px;">
+                        Template Preview
+                    </label>
+                    <div id="admin_template_preview_text" style="font-size: 13px; color: #e9edef; white-space: pre-wrap;"></div>
                 </div>
+
                 <button type="submit" class="btn btn-primary" style="width: 100%; background: #2563eb;">
                     🚀 Send WhatsApp Template
                 </button>
             </form>
             <script>
+                window.adminApprovedTemplates = <?= !empty($approvedTemplates) ? json_encode($approvedTemplates, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) : '[]' ?>;
+
                 function onTemplateSelected(sel) {
-                    if (sel.value) {
-                        document.getElementById('template_name_input').value = sel.value;
-                        var opt = sel.options[sel.selectedIndex];
-                        if (opt && opt.getAttribute('data-lang')) {
-                            document.getElementById('template_lang_input').value = opt.getAttribute('data-lang');
-                        }
+                    var container = document.getElementById('admin_template_vars_container');
+                    var previewBox = document.getElementById('admin_template_preview_box');
+                    var previewText = document.getElementById('admin_template_preview_text');
+
+                    if (!sel.value) {
+                        return;
+                    }
+
+                    document.getElementById('template_name_input').value = sel.value;
+                    var opt = sel.options[sel.selectedIndex];
+                    if (opt && opt.getAttribute('data-lang')) {
+                        document.getElementById('template_lang_input').value = opt.getAttribute('data-lang');
+                    }
+
+                    // Find template in array
+                    var tpl = (window.adminApprovedTemplates || []).find(function(t) {
+                        return (t.name === sel.value) && (!opt.getAttribute('data-lang') || t.language === opt.getAttribute('data-lang'));
+                    });
+
+                    if (!tpl || !Array.isArray(tpl.components)) {
+                        return;
+                    }
+
+                    // Extract body text and placeholders
+                    var bodyComp = tpl.components.find(function(c) { return (c.type || '').toUpperCase() === 'BODY'; });
+                    var bodyText = bodyComp ? (bodyComp.text || '') : '';
+                    var vars = [];
+                    var matches = bodyText.match(/\{\{([^{}]+)\}\}/g) || [];
+                    matches.forEach(function(m) {
+                        var raw = m.replace(/[\{\}]/g, '').trim();
+                        if (vars.indexOf(raw) === -1) vars.push(raw);
+                    });
+                    if (vars.length === 0 && bodyComp && Array.isArray(bodyComp.variables)) {
+                        bodyComp.variables.forEach(function(v, idx) {
+                            var vName = (typeof v === 'object' && v !== null) ? (v.name || String(idx + 1)) : String(v);
+                            if (vars.indexOf(vName) === -1) vars.push(vName);
+                        });
+                    }
+
+                    container.innerHTML = '';
+                    if (vars.length === 0) {
+                        container.innerHTML = '<div style="padding: 8px 12px; background: rgba(16, 185, 129, 0.1); border-radius: 6px; font-size: 12.5px; color: #6ee7b7; margin-bottom: 12px;">✓ No parameters required for this template.</div>';
+                    } else {
+                        vars.forEach(function(varName, idx) {
+                            var grp = document.createElement('div');
+                            grp.className = 'form-group';
+                            grp.innerHTML = '<label>Parameter ' + (idx + 1) + ' ({{' + varName + '}})</label>' +
+                                '<input type="text" name="template_param_' + (idx + 1) + '" class="form-control admin-tpl-input" placeholder="Value for {{' + varName + '}}">';
+                            container.appendChild(grp);
+                        });
+                    }
+
+                    if (bodyText) {
+                        previewBox.style.display = 'block';
+                        previewText.innerText = bodyText;
+                    } else {
+                        previewBox.style.display = 'none';
                     }
                 }
             </script>
