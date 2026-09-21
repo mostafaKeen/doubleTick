@@ -3001,9 +3001,31 @@ header('Content-Security-Policy: frame-ancestors *');
             const cType = (comp.type || '').toUpperCase();
             if (cType === 'HEADER') {
                 const format = (comp.format || 'TEXT').toUpperCase();
+                let defaultMediaUrl = '';
+                let defaultFilename = '';
+
+                if (Array.isArray(comp.variables) && comp.variables.length > 0) {
+                    const firstVar = comp.variables[0];
+                    if (typeof firstVar === 'object' && firstVar !== null) {
+                        defaultMediaUrl = firstVar.mediaUrl || firstVar.url || '';
+                        defaultFilename = firstVar.fileName || firstVar.filename || '';
+                    }
+                }
+                if (!defaultMediaUrl && comp.mediaUrl) defaultMediaUrl = comp.mediaUrl;
+                if (!defaultMediaUrl && comp.url) defaultMediaUrl = comp.url;
+                if (!defaultMediaUrl && comp.example) {
+                    if (Array.isArray(comp.example.header_url) && comp.example.header_url[0]) {
+                        defaultMediaUrl = comp.example.header_url[0];
+                    } else if (Array.isArray(comp.example.header_handle) && comp.example.header_handle[0]) {
+                        defaultMediaUrl = comp.example.header_handle[0];
+                    }
+                }
+
                 result.header = {
                     format: format,
                     text: comp.text || '',
+                    defaultMediaUrl: defaultMediaUrl,
+                    defaultFilename: defaultFilename,
                     variables: []
                 };
                 if (format === 'TEXT') {
@@ -3105,19 +3127,31 @@ header('Content-Security-Policy: frame-ancestors *');
         const header = parsed.header;
         const buttonsWithParam = (parsed.buttons || []).filter(b => b.hasParam);
 
-        // 1. Header inputs
+        // 1. Header inputs / notices
         if (header) {
-            if (header.format === 'IMAGE' || header.format === 'VIDEO' || header.format === 'DOCUMENT') {
+            if (header.format === 'IMAGE') {
+                // Default approved image is used automatically - no required URL input needed
+                const imgNotice = document.createElement('div');
+                imgNotice.style.cssText = 'padding: 9px 12px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px;';
+                imgNotice.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #93c5fd;">
+                        <span style="font-size: 15px;">🖼️</span>
+                        <span><strong>Header Image:</strong> Using template's default approved image</span>
+                    </div>
+                    <span style="font-size: 11px; padding: 2px 7px; border-radius: 4px; background: rgba(16, 185, 129, 0.2); color: #6ee7b7; font-weight: 600;">Default</span>
+                `;
+                container.appendChild(imgNotice);
+            } else if (header.format === 'VIDEO' || header.format === 'DOCUMENT') {
                 totalVars++;
-                const icon = header.format === 'IMAGE' ? '🖼️' : (header.format === 'VIDEO' ? '🎥' : '📄');
+                const icon = header.format === 'VIDEO' ? '🎥' : '📄';
                 const grp = document.createElement('div');
                 grp.className = 'form-group';
                 grp.innerHTML = `
                     <label style="display: flex; align-items: center; gap: 6px;">
                         <span>${icon}</span>
-                        <span>Header ${header.format} URL <span style="color: var(--danger);">*</span></span>
+                        <span>Header ${header.format} URL</span>
                     </label>
-                    <input type="url" id="crm-tpl-header-media" class="form-control" placeholder="https://example.com/file.${header.format === 'IMAGE' ? 'jpg' : (header.format === 'VIDEO' ? 'mp4' : 'pdf')}" oninput="onTplFieldInput()">
+                    <input type="url" id="crm-tpl-header-media" class="form-control" value="${escapeHtml(header.defaultMediaUrl || '')}" placeholder="https://example.com/file.${header.format === 'VIDEO' ? 'mp4' : 'pdf'}" oninput="onTplFieldInput()">
                 `;
                 container.appendChild(grp);
 
@@ -3126,7 +3160,7 @@ header('Content-Security-Policy: frame-ancestors *');
                     fnGrp.className = 'form-group';
                     fnGrp.innerHTML = `
                         <label>Document File Name (Optional)</label>
-                        <input type="text" id="crm-tpl-header-filename" class="form-control" placeholder="e.g. statement.pdf" oninput="onTplFieldInput()">
+                        <input type="text" id="crm-tpl-header-filename" class="form-control" value="${escapeHtml(header.defaultFilename || '')}" placeholder="e.g. statement.pdf" oninput="onTplFieldInput()">
                     `;
                     container.appendChild(fnGrp);
                 }
@@ -3264,9 +3298,20 @@ header('Content-Security-Policy: frame-ancestors *');
 
         // Header preview
         if (parsed.header) {
-            if (parsed.header.format === 'IMAGE' || parsed.header.format === 'VIDEO' || parsed.header.format === 'DOCUMENT') {
-                const mediaVal = document.getElementById('crm-tpl-header-media') ? document.getElementById('crm-tpl-header-media').value.trim() : '';
-                const icon = parsed.header.format === 'IMAGE' ? '🖼️ Image Header' : (parsed.header.format === 'VIDEO' ? '🎥 Video Header' : '📄 Document Header');
+            if (parsed.header.format === 'IMAGE') {
+                const imgUrl = parsed.header.defaultMediaUrl;
+                if (imgUrl && imgUrl.startsWith('http')) {
+                    html += `<div class="template-preview-media" style="padding: 0; background: transparent; border: none;">
+                        <img src="${escapeHtml(imgUrl)}" alt="Header Image" style="width: 100%; max-height: 160px; object-fit: cover; border-radius: 8px; display: block;">
+                    </div>`;
+                } else {
+                    html += `<div class="template-preview-media">
+                        <span>🖼️ Header Image: Using template's default approved image</span>
+                    </div>`;
+                }
+            } else if (parsed.header.format === 'VIDEO' || parsed.header.format === 'DOCUMENT') {
+                const mediaVal = document.getElementById('crm-tpl-header-media') ? document.getElementById('crm-tpl-header-media').value.trim() : (parsed.header.defaultMediaUrl || '');
+                const icon = parsed.header.format === 'VIDEO' ? '🎥 Video Header' : '📄 Document Header';
                 html += `<div class="template-preview-media">
                     <span>${icon}:</span>
                     <span>${mediaVal ? escapeHtml(mediaVal) : '<em style="opacity: 0.6;">(URL to be provided)</em>'}</span>
@@ -3332,28 +3377,36 @@ header('Content-Security-Policy: frame-ancestors *');
 
         // Collect header data
         let headerData = null;
-        const mediaInput = document.getElementById('crm-tpl-header-media');
-        if (mediaInput && window.currentSelectedTemplateParsed && window.currentSelectedTemplateParsed.header) {
-            const format = window.currentSelectedTemplateParsed.header.format;
-            const mediaUrl = mediaInput.value.trim();
-            if (!mediaUrl) {
-                alert(`Please provide a valid Header ${format} URL.`);
-                mediaInput.focus();
-                return;
-            }
-            headerData = {
-                type: format,
-                mediaUrl: mediaUrl
-            };
-            const docFn = document.getElementById('crm-tpl-header-filename') ? document.getElementById('crm-tpl-header-filename').value.trim() : '';
-            if (docFn) headerData.filename = docFn;
-        } else if (window.currentSelectedTemplateParsed && window.currentSelectedTemplateParsed.header && window.currentSelectedTemplateParsed.header.format === 'TEXT' && window.currentSelectedTemplateParsed.header.variables.length > 0) {
-            const hVal = document.getElementById('crm-tpl-header-var-0') ? document.getElementById('crm-tpl-header-var-0').value.trim() : '';
-            if (hVal) {
-                headerData = {
-                    type: 'TEXT',
-                    placeholder: hVal
-                };
+        if (window.currentSelectedTemplateParsed && window.currentSelectedTemplateParsed.header) {
+            const header = window.currentSelectedTemplateParsed.header;
+            const format = header.format;
+            if (format === 'IMAGE') {
+                // Auto-use default approved image from template
+                if (header.defaultMediaUrl) {
+                    headerData = {
+                        type: 'IMAGE',
+                        mediaUrl: header.defaultMediaUrl
+                    };
+                }
+            } else if (format === 'VIDEO' || format === 'DOCUMENT') {
+                const mediaInput = document.getElementById('crm-tpl-header-media');
+                const mediaUrl = mediaInput ? mediaInput.value.trim() : (header.defaultMediaUrl || '');
+                if (mediaUrl) {
+                    headerData = {
+                        type: format,
+                        mediaUrl: mediaUrl
+                    };
+                    const docFn = document.getElementById('crm-tpl-header-filename') ? document.getElementById('crm-tpl-header-filename').value.trim() : (header.defaultFilename || '');
+                    if (docFn) headerData.filename = docFn;
+                }
+            } else if (format === 'TEXT' && header.variables.length > 0) {
+                const hVal = document.getElementById('crm-tpl-header-var-0') ? document.getElementById('crm-tpl-header-var-0').value.trim() : '';
+                if (hVal) {
+                    headerData = {
+                        type: 'TEXT',
+                        placeholder: hVal
+                    };
+                }
             }
         }
 

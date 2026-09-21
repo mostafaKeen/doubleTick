@@ -129,6 +129,46 @@ assert(count($sentMsg['content']['templateData']['body']['placeholders']) === 3,
 
 echo "  ✓ Simulated placement_tab backend POST correctly received and passed dynamic variables!\n\n";
 
+// Test Case 6: Automatic Default Header Image Handling
+echo "[6/6] Testing Automatic Default Header Image Handling...\n";
+// Simulating template schema received from DoubleTick with default image
+$mockImageTemplate = [
+    'name' => 'summer_catalog',
+    'language' => 'en',
+    'components' => [
+        [
+            'type' => 'HEADER',
+            'format' => 'IMAGE',
+            'variables' => [
+                ['mediaUrl' => 'https://example.com/default-catalog-cover.jpg']
+            ]
+        ],
+        [
+            'type' => 'BODY',
+            'text' => 'Hello {{1}}, explore our summer catalog!',
+            'variables' => [['name' => '1']]
+        ]
+    ]
+];
+
+// Verify that when sent without user providing an image URL, the default image from template is used
+$defaultHeaderUrl = $mockImageTemplate['components'][0]['variables'][0]['mediaUrl'];
+$payloadTemplateData = [
+    'header' => [
+        'type' => 'IMAGE',
+        'mediaUrl' => $defaultHeaderUrl
+    ],
+    'body' => [
+        'placeholders' => ['Monica']
+    ]
+];
+$dt->sendTemplateMessage('201129274930', 'summer_catalog', 'en', $payloadTemplateData);
+$sentMsg = $dt->lastPayload['messages'][0];
+assert($sentMsg['content']['templateData']['header']['type'] === 'IMAGE', "Header type should be IMAGE");
+assert($sentMsg['content']['templateData']['header']['mediaUrl'] === 'https://example.com/default-catalog-cover.jpg', "Default header mediaUrl mismatch");
+assert($sentMsg['content']['templateData']['body']['placeholders'] === ['Monica'], "Body placeholder mismatch");
+echo "  ✓ Automatic default header image properly included in payload without user prompt!\n\n";
+
 echo "===================================================\n";
 echo " ALL TEMPLATE VARIABLE TESTS PASSED!\n";
 echo "===================================================\n";
