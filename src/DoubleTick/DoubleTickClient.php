@@ -26,7 +26,7 @@ class DoubleTickClient
     public function sendTextMessage(string $to, string $text, ?string $from = null): array
     {
         $payload = [
-            'to' => $this->normalizePhone($to),
+            'to' => $this->normalizePhone($to, true),
             'content' => [
                 'text' => $text,
             ],
@@ -34,10 +34,25 @@ class DoubleTickClient
 
         $fromWaba = $this->resolveFromWaba($from);
         if ($fromWaba) {
-            $payload['from'] = $this->normalizePhone($fromWaba);
+            $payload['from'] = $this->normalizePhone($fromWaba, true);
         }
 
-        return $this->post('/whatsapp/message/text', $payload);
+        $res = $this->post('/whatsapp/message/text', $payload);
+
+        // If DoubleTick rejected due to session window matching or number formatting, retry with digits-only
+        if (!empty($res['error']) && (stripos((string)$res['error'], 'closed') !== false || ($res['status_code'] ?? 0) === 422)) {
+            $fallbackPayload = $payload;
+            $fallbackPayload['to'] = $this->normalizePhone($to, false);
+            if ($fromWaba) {
+                $fallbackPayload['from'] = $this->normalizePhone($fromWaba, false);
+            }
+            $retryRes = $this->post('/whatsapp/message/text', $fallbackPayload);
+            if (!empty($retryRes['messageId']) || !empty($retryRes['dtMessageId']) || (!empty($retryRes['status']) && in_array(strtoupper((string)$retryRes['status']), ['SENT', 'DELIVERED', 'PENDING']))) {
+                return $retryRes;
+            }
+        }
+
+        return $res;
     }
 
     /**
@@ -67,19 +82,38 @@ class DoubleTickClient
             $content['templateData'] = $templateData;
         }
 
+        $fromWaba = $this->resolveFromWaba($from);
+
         $message = [
-            'to' => $this->normalizePhone($to),
+            'to' => $this->normalizePhone($to, true),
             'content' => $content,
         ];
-
-        $fromWaba = $this->resolveFromWaba($from);
         if ($fromWaba) {
-            $message['from'] = $this->normalizePhone($fromWaba);
+            $message['from'] = $this->normalizePhone($fromWaba, true);
         }
 
-        return $this->post('/whatsapp/message/template', [
+        $res = $this->post('/whatsapp/message/template', [
             'messages' => [$message],
         ]);
+
+        if (!empty($res['error']) && ($res['status_code'] ?? 0) >= 400) {
+            // Fallback retry with digits-only format
+            $fallbackMessage = [
+                'to' => $this->normalizePhone($to, false),
+                'content' => $content,
+            ];
+            if ($fromWaba) {
+                $fallbackMessage['from'] = $this->normalizePhone($fromWaba, false);
+            }
+            $retryRes = $this->post('/whatsapp/message/template', [
+                'messages' => [$fallbackMessage],
+            ]);
+            if (!empty($retryRes['messageId']) || !empty($retryRes['messages']) || empty($retryRes['error'])) {
+                return $retryRes;
+            }
+        }
+
+        return $res;
     }
 
     /**
@@ -109,16 +143,30 @@ class DoubleTickClient
         }
 
         $payload = [
-            'to' => $this->normalizePhone($to),
+            'to' => $this->normalizePhone($to, true),
             'content' => $content,
         ];
 
         $fromWaba = $this->resolveFromWaba($from);
         if ($fromWaba) {
-            $payload['from'] = $this->normalizePhone($fromWaba);
+            $payload['from'] = $this->normalizePhone($fromWaba, true);
         }
 
-        return $this->post("/whatsapp/message/{$mediaType}", $payload);
+        $res = $this->post("/whatsapp/message/{$mediaType}", $payload);
+
+        if (!empty($res['error']) && (stripos((string)$res['error'], 'closed') !== false || ($res['status_code'] ?? 0) === 422)) {
+            $fallbackPayload = $payload;
+            $fallbackPayload['to'] = $this->normalizePhone($to, false);
+            if ($fromWaba) {
+                $fallbackPayload['from'] = $this->normalizePhone($fromWaba, false);
+            }
+            $retryRes = $this->post("/whatsapp/message/{$mediaType}", $fallbackPayload);
+            if (!empty($retryRes['messageId']) || !empty($retryRes['dtMessageId']) || (!empty($retryRes['status']) && in_array(strtoupper((string)$retryRes['status']), ['SENT', 'DELIVERED', 'PENDING']))) {
+                return $retryRes;
+            }
+        }
+
+        return $res;
     }
 
     /**

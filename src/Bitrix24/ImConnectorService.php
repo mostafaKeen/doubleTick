@@ -282,63 +282,128 @@ class ImConnectorService
                     }
                 }
 
-                // If text remaining (or no files sent)
+                // Check if outbound message succeeded
+                $isSuccess = false;
+                $errDetail = null;
+                if (!empty($b24Files) && !empty($mediaRes)) {
+                    if (!empty($mediaRes['messageId']) || !empty($mediaRes['dtMessageId']) || (!empty($mediaRes['status']) && in_array(strtoupper((string)$mediaRes['status']), ['SENT', 'DELIVERED', 'PENDING']))) {
+                        $isSuccess = true;
+                    } elseif (!empty($mediaRes['error'])) {
+                        $errDetail = is_array($mediaRes['error']) ? json_encode($mediaRes['error']) : (string)$mediaRes['error'];
+                    }
+                }
                 if ($cleanText !== '') {
                     $dtRes = $dtClient->sendTextMessage($customerPhone, $cleanText);
-                    $dtMessageId = $dtRes['messageId'] ?? $dtRes['dtMessageId'] ?? $dtMessageId;
+                    if (!empty($dtRes['messageId']) || !empty($dtRes['dtMessageId']) || (!empty($dtRes['status']) && in_array(strtoupper((string)$dtRes['status']), ['SENT', 'DELIVERED', 'PENDING']))) {
+                        $dtMessageId = $dtRes['messageId'] ?? $dtRes['dtMessageId'] ?? $dtMessageId;
+                        $isSuccess = true;
+                    } elseif (!empty($dtRes['error'])) {
+                        $errDetail = is_array($dtRes['error']) ? json_encode($dtRes['error']) : (string)$dtRes['error'];
+                        $isSuccess = false;
+                    }
                 }
 
-                // Confirm delivery back to Bitrix24
-                $this->b24->call('imconnector.send.status.delivery', [
-                    'CONNECTOR' => $this->connectorId,
-                    'LINE' => $lineId,
-                    'MESSAGES' => [
-                        [
-                            'im' => [
-                                'chat_id' => $b24ChatId,
-                                'message_id' => $b24MsgId,
-                            ],
-                            'message' => [
-                                'id' => $dtMessageId,
-                            ],
-                            'chat' => [
-                                'id' => $customerPhone,
-                            ],
+                if ($isSuccess) {
+                    // Confirm delivery back to Bitrix24
+                    $this->b24->call('imconnector.send.status.delivery', [
+                        'CONNECTOR' => $this->connectorId,
+                        'LINE' => $lineId,
+                        'MESSAGES' => [
+                            [
+                                'im' => [
+                                    'chat_id' => $b24ChatId,
+                                    'message_id' => $b24MsgId,
+                                ],
+                                'message' => [
+                                    'id' => $dtMessageId,
+                                ],
+                                'chat' => [
+                                    'id' => $customerPhone,
+                                ],
+                            ]
                         ]
-                    ]
-                ]);
+                    ]);
 
-                // Store in database
-                $db = Database::getInstance();
-                $stmt = $db->prepare("
-                    INSERT INTO message_mappings (
-                        portal_id, b24_chat_id, b24_message_id, dt_message_id, whatsapp_message_id,
-                        customer_phone, direction, message_type, status, raw_data, created_at
-                    ) VALUES (
-                        :portal_id, :b24_chat_id, :b24_message_id, :dt_message_id, NULL,
-                        :customer_phone, 'OUTBOUND', :m_type, 'sent', :raw_data, datetime('now')
-                    )
-                ");
-                $stmt->execute([
-                    'portal_id' => $this->b24->getPortalId(),
-                    'b24_chat_id' => $b24ChatId,
-                    'b24_message_id' => $b24MsgId,
-                    'dt_message_id' => $dtMessageId,
-                    'customer_phone' => $customerPhone,
-                    'm_type' => $lastSentMediaType,
-                    'raw_data' => json_encode([
-                        'text' => $rawText,
-                        'media_url' => $primaryMediaUrl,
-                        'media_type' => $lastSentMediaType,
-                        'time' => date('Y-m-d H:i:s'),
-                    ]),
-                ]);
+                    // Store in database
+                    $db = Database::getInstance();
+                    $stmt = $db->prepare("
+                        INSERT INTO message_mappings (
+                            portal_id, b24_chat_id, b24_message_id, dt_message_id, whatsapp_message_id,
+                            customer_phone, direction, message_type, status, raw_data, created_at
+                        ) VALUES (
+                            :portal_id, :b24_chat_id, :b24_message_id, :dt_id, NULL,
+                            :customer_phone, 'OUTBOUND', :m_type, 'sent', :raw_data, datetime('now')
+                        )
+                    ");
+                    $stmt->execute([
+                        'portal_id' => $this->b24->getPortalId(),
+                        'b24_chat_id' => $b24ChatId,
+                        'b24_message_id' => $b24MsgId,
+                        'dt_id' => $dtMessageId,
+                        'customer_phone' => $customerPhone,
+                        'm_type' => $lastSentMediaType,
+                        'raw_data' => json_encode([
+                            'text' => $rawText,
+                            'media_url' => $primaryMediaUrl,
+                            'media_type' => $lastSentMediaType,
+                            'time' => date('Y-m-d H:i:s'),
+                        ]),
+                    ]);
 
-                Logger::info("Outbound message successfully sent to DoubleTick", [
-                    'to' => $customerPhone,
-                    'dtMessageId' => $dtMessageId,
-                    'type' => $lastSentMediaType
-                ]);
+                    Logger::info("Outbound message successfully sent to DoubleTick", [
+                        'to' => $customerPhone,
+                        'dtMessageId' => $dtMessageId,
+                        'type' => $lastSentMediaType
+                    ]);
+                } else {
+                    $errDetail = $errDetail ?: 'WhatsApp API rejected message';
+                    $isWindowClosed = (stripos($errDetail, 'closed') !== false || stripos($errDetail, 'template message') !== false);
+
+                    Logger::warning("Outbound message failed to send to DoubleTick", [
+                        'to' => $customerPhone,
+                        'error' => $errDetail,
+                    ]);
+
+                    // Record failure in message_mappings
+                    try {
+                        $db = Database::getInstance();
+                        $stmt = $db->prepare("
+                            INSERT INTO message_mappings (
+                                portal_id, b24_chat_id, b24_message_id, dt_message_id, whatsapp_message_id,
+                                customer_phone, direction, message_type, status, raw_data, created_at
+                            ) VALUES (
+                                :portal_id, :b24_chat_id, :b24_message_id, :dt_id, NULL,
+                                :customer_phone, 'OUTBOUND', :m_type, 'failed', :raw_data, datetime('now')
+                            )
+                        ");
+                        $stmt->execute([
+                            'portal_id' => $this->b24->getPortalId(),
+                            'b24_chat_id' => $b24ChatId,
+                            'b24_message_id' => $b24MsgId,
+                            'dt_id' => 'failed_' . uniqid(),
+                            'customer_phone' => $customerPhone,
+                            'm_type' => $lastSentMediaType,
+                            'raw_data' => json_encode([
+                                'text' => $rawText,
+                                'error' => $errDetail,
+                                'time' => date('Y-m-d H:i:s'),
+                            ]),
+                        ]);
+                    } catch (\Throwable $dbErr) {}
+
+                    // Notify the operator in the Bitrix24 chat immediately
+                    if ($b24ChatId > 0) {
+                        $noticeMsg = $isWindowClosed
+                            ? "⚠️ [b]WhatsApp Delivery Failed:[/b] Meta WhatsApp 24-hour customer session is closed.\nFree-form messages cannot be sent. Please send an approved [b]WhatsApp Template[/b] from the CRM DoubleTick tab to re-engage this customer."
+                            : "⚠️ [b]WhatsApp Delivery Failed:[/b] " . $errDetail;
+
+                        $this->b24->call('im.message.add', [
+                            'DIALOG_ID' => 'chat' . $b24ChatId,
+                            'MESSAGE' => $noticeMsg,
+                            'SYSTEM' => 'Y',
+                        ]);
+                    }
+                }
             } catch (Exception $e) {
                 Logger::error("Failed to send outbound message via DoubleTick", [
                     'error' => $e->getMessage(),

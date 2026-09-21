@@ -456,18 +456,21 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
     $localRowsCount = 0;
     try {
         $db = Database::getInstance();
+        $phoneSuffix = strlen($cleanPhone) >= 9 ? substr($cleanPhone, -9) : $cleanPhone;
+        $shortSuffix = strlen($cleanPhone) >= 8 ? substr($cleanPhone, -8) : $cleanPhone;
         $stmt = $db->prepare("
             SELECT * FROM message_mappings 
-            WHERE customer_phone LIKE :phone 
-               OR customer_phone LIKE :clean_phone
+            WHERE customer_phone LIKE :clean_phone
                OR customer_phone LIKE :intl_phone
+               OR customer_phone LIKE :phone
+               OR customer_phone LIKE :short_phone
             ORDER BY id ASC
         ");
-        $phoneSuffix = substr($cleanPhone, -9);
         $stmt->execute([
-            'phone' => '%' . $phoneSuffix,
             'clean_phone' => '%' . $cleanPhone . '%',
             'intl_phone' => '%' . $intlPhone . '%',
+            'phone' => '%' . $phoneSuffix,
+            'short_phone' => '%' . $shortSuffix,
         ]);
         $localRows = $stmt->fetchAll();
         $localRowsCount = count($localRows);
@@ -694,12 +697,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
             SELECT MAX(created_at) as last_inbound 
             FROM message_mappings 
             WHERE direction = 'INBOUND' 
-              AND (customer_phone LIKE :phone OR customer_phone LIKE :clean_phone OR customer_phone LIKE :intl_phone)
+              AND (customer_phone LIKE :phone OR customer_phone LIKE :clean_phone OR customer_phone LIKE :intl_phone OR customer_phone LIKE :short_phone)
         ");
         $inboundStmt->execute([
             'phone' => '%' . $phoneSuffix,
             'clean_phone' => '%' . $cleanPhone . '%',
             'intl_phone' => '%' . $intlPhone . '%',
+            'short_phone' => '%' . $shortSuffix,
         ]);
         $lastInboundRow = $inboundStmt->fetch();
         if (!empty($lastInboundRow['last_inbound'])) {
@@ -821,6 +825,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     try {
         $dt = new DoubleTickClient($apiKey, $waba, $config['doubletick']['api_url']);
         $res = $dt->sendTextMessage($phone, $text, $waba);
+        if (!empty($res['error']) || (!empty($res['status_code']) && $res['status_code'] >= 400)) {
+            $errDetail = is_array($res['error']) ? json_encode($res['error']) : (string)$res['error'];
+            $isClosed = (stripos($errDetail, 'closed') !== false || stripos($errDetail, 'template message') !== false || ($res['status_code'] ?? 0) === 422);
+            echo json_encode([
+                'success' => false,
+                'error' => $errDetail,
+                'window_closed' => $isClosed,
+                'raw_response' => $res,
+            ]);
+            exit;
+        }
         $msgId = $res['messageId'] ?? ($res['dtMessageId'] ?? ('out_' . uniqid()));
 
         // Save to database
@@ -925,6 +940,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $dtMediaUrl = $dt->uploadMedia($targetPath, null, $origName);
 
         $res = $dt->sendMediaMessage($mediaType, $phone, $dtMediaUrl, $caption !== '' ? $caption : null, $origName, $waba);
+        if (!empty($res['error']) || (!empty($res['status_code']) && $res['status_code'] >= 400)) {
+            @unlink($targetPath);
+            $errDetail = is_array($res['error']) ? json_encode($res['error']) : (string)$res['error'];
+            $isClosed = (stripos($errDetail, 'closed') !== false || stripos($errDetail, 'template message') !== false || ($res['status_code'] ?? 0) === 422);
+            echo json_encode([
+                'success' => false,
+                'error' => $errDetail,
+                'window_closed' => $isClosed,
+                'raw_response' => $res,
+            ]);
+            exit;
+        }
         $msgId = $res['messageId'] ?? ($res['dtMessageId'] ?? ('out_' . uniqid()));
 
         $appUrl = rtrim($config['app']['url'], '/');
@@ -1036,6 +1063,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $durStr = $duration > 0 ? sprintf('%02d:%02d', floor($duration / 60), $duration % 60) : '';
         $caption = "🎙️ Voice Note" . ($durStr ? " ({$durStr})" : "");
         $res = $dt->sendMediaMessage('audio', $phone, $dtMediaUrl, null, null, $waba);
+        if (!empty($res['error']) || (!empty($res['status_code']) && $res['status_code'] >= 400)) {
+            @unlink($targetPath);
+            $errDetail = is_array($res['error']) ? json_encode($res['error']) : (string)$res['error'];
+            $isClosed = (stripos($errDetail, 'closed') !== false || stripos($errDetail, 'template message') !== false || ($res['status_code'] ?? 0) === 422);
+            echo json_encode([
+                'success' => false,
+                'error' => $errDetail,
+                'window_closed' => $isClosed,
+                'raw_response' => $res,
+            ]);
+            exit;
+        }
         $msgId = $res['messageId'] ?? ($res['dtMessageId'] ?? ('voice_' . uniqid()));
 
         $appUrl = rtrim($config['app']['url'], '/');
