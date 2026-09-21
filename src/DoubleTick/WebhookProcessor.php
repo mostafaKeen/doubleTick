@@ -43,7 +43,8 @@ class WebhookProcessor
     public function process(array $payload): array
     {
         // DoubleTick webhook event types can be top-level or inside payload
-        $eventType = $payload['event'] ?? $payload['eventType'] ?? null;
+        $rawEvent = $payload['event'] ?? $payload['eventType'] ?? null;
+        $eventType = $rawEvent ? strtoupper(trim((string)$rawEvent)) : null;
 
         // Auto-detect based on payload keys if eventType is omitted
         if (!$eventType) {
@@ -67,9 +68,12 @@ class WebhookProcessor
 
         switch ($eventType) {
             case 'MESSAGE_RECEIVED':
+            case 'INCOMING_MESSAGE':
+            case 'MESSAGE':
                 return $this->handleMessageReceived($payload);
 
             case 'MESSAGE_STATUS_UPDATE':
+            case 'STATUS_UPDATE':
                 return $this->handleStatusUpdate($payload);
 
             case 'NEW_LEAD':
@@ -180,10 +184,21 @@ class WebhookProcessor
             $lon = $messageObj['longitude'] ?? '';
             $locName = $messageObj['name'] ?? 'Shared Location';
             $text = "📍 {$locName} (Lat: {$lat}, Lon: {$lon})";
-        } elseif ($type === 'BUTTON') {
-            $text = "Selected button: " . ($messageObj['text'] ?? '');
+        } elseif ($type === 'BUTTON' || $type === 'BUTTON_REPLY') {
+            $text = "Selected button: " . ($messageObj['text'] ?? ($messageObj['button_reply']['title'] ?? ''));
+        } elseif ($type === 'INTERACTIVE') {
+            $inter = $messageObj['interactive'] ?? [];
+            $btnTitle = $inter['button_reply']['title'] ?? ($inter['list_reply']['title'] ?? ($inter['body']['text'] ?? ''));
+            $text = $btnTitle !== '' ? "Selected: {$btnTitle}" : "[Interactive response]";
+        } elseif ($type === 'REACTION') {
+            $emoji = $messageObj['reaction']['emoji'] ?? '';
+            $text = $emoji ? "Reacted: {$emoji}" : "Reacted";
+        } elseif ($type === 'CONTACTS') {
+            $firstC = $messageObj['contacts'][0] ?? ($messageObj['contacts'] ?? []);
+            $cName = $firstC['name']['formatted_name'] ?? ($firstC['name'] ?? 'Shared contact');
+            $text = "👤 Contact: {$cName}";
         } else {
-            $text = "[Received {$type} message]";
+            $text = !empty($messageObj['text']) ? (string)$messageObj['text'] : "[Received {$type} message]";
         }
 
         // Always record incoming message in local DB for CRM placement tab

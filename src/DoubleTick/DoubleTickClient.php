@@ -298,13 +298,15 @@ class DoubleTickClient
     public function getChatMessages(string $phone, ?string $wabaNumber = null, ?string $startDate = null, ?string $endDate = null): array
     {
         $waba = $this->resolveFromWaba($wabaNumber);
+        $cleanWaba = $this->normalizePhone($waba);
+        $cleanPhone = $this->normalizePhone($phone);
+        $effectiveStartDate = $startDate ?: date('d-m-Y', strtotime('-90 days'));
+
         $params = [
-            'wabaNumber' => $this->normalizePhone($waba),
-            'customerNumber' => $this->normalizePhone($phone),
+            'wabaNumber' => $cleanWaba,
+            'customerNumber' => $cleanPhone,
+            'startDate' => $effectiveStartDate,
         ];
-        if ($startDate) {
-            $params['startDate'] = $startDate;
-        }
         if ($endDate) {
             $params['endDate'] = $endDate;
         }
@@ -340,7 +342,7 @@ class DoubleTickClient
                 ]);
             } catch (\Throwable $e2) {
                 Logger::warning("Could not fetch /chat/status from DoubleTick: " . $e2->getMessage());
-                return ['isOpen' => false, 'error' => $e2->getMessage()];
+                return ['isOpen' => null, 'error' => $e2->getMessage()];
             }
         }
     }

@@ -144,26 +144,52 @@ function extractDtMessageContent($msg): array {
             $text = $strHelper($inter['body']['text']);
         }
     }
+    if (empty($text) && !empty($msg['button_reply']) && is_array($msg['button_reply'])) {
+        $text = "🔘 " . $strHelper($msg['button_reply']['title'] ?? ($msg['button_reply']['id'] ?? ''));
+    }
+    if (empty($text) && !empty($msg['list_reply']) && is_array($msg['list_reply'])) {
+        $text = "📋 " . $strHelper($msg['list_reply']['title'] ?? '');
+    }
     if (empty($text) && !empty($msg['button']) && is_array($msg['button'])) {
-        $text = "🔘 " . $strHelper($msg['button']['text'] ?? $msg['button']['payload'] ?? '');
+        $text = "🔘 " . $strHelper($msg['button']['text'] ?? ($msg['button']['payload'] ?? ''));
     }
 
-    // 7. Template checks
-    if (empty($text) && !empty($msg['templateId'])) {
-        $text = "📋 Template: " . (is_string($msg['templateId']) ? $msg['templateId'] : json_encode($msg['templateId']));
-        $mediaType = 'template';
-    } elseif (empty($text) && !empty($msg['template_name'])) {
-        $text = "📋 Template: " . (is_string($msg['template_name']) ? $msg['template_name'] : json_encode($msg['template_name']));
-        $mediaType = 'template';
+    // 7. Template checks (all variations: templateName, template_name, templateId, template)
+    if (empty($text)) {
+        $tplName = $msg['templateName'] ?? $msg['template_name'] ?? $msg['templateId'] ?? $msg['template_id'] ?? null;
+        if (!$tplName && !empty($msg['template'])) {
+            if (is_string($msg['template'])) {
+                $tplName = $msg['template'];
+            } elseif (is_array($msg['template'])) {
+                $tplName = $msg['template']['name'] ?? ($msg['template']['templateName'] ?? ($msg['template']['template_name'] ?? null));
+            }
+        }
+        if ($tplName) {
+            $text = "📋 Template: " . (is_string($tplName) ? $tplName : json_encode($tplName));
+            $mediaType = 'template';
+        }
     }
 
-    // 8. Location checks
+    // 8. Reactions
+    if (empty($text) && !empty($msg['reaction']) && is_array($msg['reaction'])) {
+        $emoji = $msg['reaction']['emoji'] ?? '';
+        $text = $emoji ? "Reacted: {$emoji}" : "Reacted";
+    }
+
+    // 9. Location checks
     if (empty($text) && !empty($msg['location']) && is_array($msg['location'])) {
-        $locName = $strHelper($msg['location']['name'] ?? 'Location');
+        $locName = $strHelper($msg['location']['name'] ?? ($msg['location']['address'] ?? 'Shared Location'));
         $text = "📍 " . $locName;
     }
 
-    // 9. If still empty, scan any remaining string values (ignoring technical ID and metadata fields)
+    // 10. Contacts checks
+    if (empty($text) && !empty($msg['contacts']) && is_array($msg['contacts'])) {
+        $firstC = $msg['contacts'][0] ?? $msg['contacts'];
+        $cName = $strHelper($firstC['name']['formatted_name'] ?? ($firstC['name'] ?? 'Shared Contact'));
+        $text = "👤 Contact: " . $cName;
+    }
+
+    // 11. If still empty, scan any remaining string values (ignoring technical ID and metadata fields)
     if ($text === '' && empty($mediaUrl)) {
         $ignored = [
             'id', 'messageId', 'dtMessageId', 'senderId', 'integrationId', 'type', 'messageType',
@@ -256,15 +282,31 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
             $remoteItems = $dtRes['data'];
         }
 
-        // Fallback: if intlPhone returned no messages and cleanPhone is different, query cleanPhone
-        if (empty($remoteItems) && $intlPhone !== $cleanPhone) {
+        // Merge items from cleanPhone if different from intlPhone
+        if ($intlPhone !== $cleanPhone) {
             try {
                 $fallbackRes = $dt->getChatMessages($cleanPhone, $waba);
+                $fbItems = [];
                 if (!empty($fallbackRes['messages']) && is_array($fallbackRes['messages'])) {
-                    $remoteItems = $fallbackRes['messages'];
-                    $rawDtRes = $fallbackRes;
+                    $fbItems = $fallbackRes['messages'];
                 } elseif (!empty($fallbackRes['data']['messages']) && is_array($fallbackRes['data']['messages'])) {
-                    $remoteItems = $fallbackRes['data']['messages'];
+                    $fbItems = $fallbackRes['data']['messages'];
+                } elseif (!empty($fallbackRes['data']) && is_array($fallbackRes['data'])) {
+                    $fbItems = $fallbackRes['data'];
+                }
+                $existingIds = [];
+                foreach ($remoteItems as $ri) {
+                    $riId = (string)($ri['id'] ?? $ri['messageId'] ?? '');
+                    if ($riId) $existingIds[$riId] = true;
+                }
+                foreach ($fbItems as $fbi) {
+                    $fbiId = (string)($fbi['id'] ?? $fbi['messageId'] ?? '');
+                    if (!$fbiId || !isset($existingIds[$fbiId])) {
+                        $remoteItems[] = $fbi;
+                        if ($fbiId) $existingIds[$fbiId] = true;
+                    }
+                }
+                if (empty($rawDtRes) || empty($rawDtRes['messages'])) {
                     $rawDtRes = $fallbackRes;
                 }
             } catch (\Throwable $fbEx) {
@@ -347,7 +389,19 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
                 $status = strtolower((string)$m['status']);
             }
 
-            $isTemplate = !empty($m['templateId']);
+            $isTemplate = !empty($m['templateId'])
+                || !empty($m['templateName'])
+                || !empty($m['template_name'])
+                || !empty($m['template'])
+                || ($content['media_type'] ?? '') === 'template'
+                || strtolower((string)($m['messageType'] ?? '')) === 'template'
+                || strtolower((string)($m['type'] ?? '')) === 'template';
+
+            if ($isTemplate && $text === '') {
+                $tName = $m['templateName'] ?? $m['template_name'] ?? $m['templateId'] ?? null;
+                $text = $tName ? "📋 Template: {$tName}" : "📋 Template message";
+            }
+
             $proxyMediaUrl = $mediaUrl;
             if ($mediaUrl && stripos($mediaUrl, 'doubletick.io') !== false) {
                 $proxyMediaUrl = 'media_proxy.php?url=' . urlencode($mediaUrl) . '&member_id=' . urlencode($memberId) . '&domain=' . urlencode($domain);
@@ -423,14 +477,19 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
             if ($dtId && isset($seenIds[$dtId])) {
                 continue;
             }
-            $text = '';
-            $mediaUrl = null;
+            $rawDecoded = !empty($row['raw_data']) ? json_decode((string)$row['raw_data'], true) : null;
             if (!empty($row['raw_data'])) {
                 $content = extractDtMessageContent($row['raw_data']);
                 $text = $content['text'];
                 $mediaUrl = $content['media_url'];
-                if (!$text && !empty($raw['template_name'])) {
-                    $text = "📋 Template: " . $raw['template_name'];
+            }
+            if (!$text && !empty($row['template_name'])) {
+                $text = "📋 Template: " . $row['template_name'];
+            }
+            if (!$text && is_array($rawDecoded)) {
+                $tplName = $rawDecoded['template_name'] ?? ($rawDecoded['templateName'] ?? ($rawDecoded['templateId'] ?? null));
+                if ($tplName) {
+                    $text = "📋 Template: " . $tplName;
                 }
             }
 
@@ -561,6 +620,52 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
                 'raw_message' => $row,
             ];
         }
+
+        // Also recover any unmapped inbound messages directly from webhook_logs for this phone
+        try {
+            $whDirectStmt = $db->prepare("
+                SELECT id, event_type, payload, created_at FROM webhook_logs 
+                WHERE (payload LIKE :phone OR payload LIKE :suffix)
+                  AND (event_type IN ('MESSAGE_RECEIVED', 'INCOMING_MESSAGE', 'MESSAGE') OR payload LIKE '%\"MESSAGE_RECEIVED\"%')
+                ORDER BY id ASC
+            ");
+            $whDirectStmt->execute([
+                'phone' => '%' . $cleanPhone . '%',
+                'suffix' => '%' . $phoneSuffix . '%',
+            ]);
+            $whDirectRows = $whDirectStmt->fetchAll();
+            foreach ($whDirectRows as $wdr) {
+                $pld = json_decode((string)$wdr['payload'], true);
+                if (!is_array($pld)) continue;
+                $pldMsgId = (string)($pld['dtMessageId'] ?? ($pld['messageId'] ?? ('wh_' . $wdr['id'])));
+                if (isset($seenIds[$pldMsgId])) continue;
+
+                $extracted = extractDtMessageContent($pld['message'] ?? $pld);
+                $whText = $extracted['text'];
+                $whMediaUrl = $extracted['media_url'];
+                if ($whText === '' && !$whMediaUrl) continue;
+
+                $whTs = !empty($wdr['created_at']) ? strtotime($wdr['created_at']) : time();
+                $seenIds[$pldMsgId] = true;
+                $messages[] = [
+                    'id' => $pldMsgId,
+                    'direction' => 'INBOUND',
+                    'text' => $whText,
+                    'media_url' => $whMediaUrl,
+                    'original_media_url' => $whMediaUrl,
+                    'file_name' => $pld['message']['fileName'] ?? null,
+                    'timestamp' => $whTs,
+                    'time_str' => date('h:i A', $whTs),
+                    'date_str' => date('M j, Y', $whTs),
+                    'status' => 'delivered',
+                    'type' => $extracted['media_type'] ?: 'text',
+                    'is_voice_note' => ($extracted['media_type'] === 'audio' || $extracted['media_type'] === 'voice'),
+                    'raw_message' => $pld,
+                ];
+            }
+        } catch (\Throwable $whdEx) {
+            // Non-fatal
+        }
     } catch (\Throwable $e) {
         Logger::warning("Could not fetch local chat history: " . $e->getMessage());
     }
@@ -570,28 +675,99 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_chat_history') {
         return $a['timestamp'] <=> $b['timestamp'];
     });
 
-    // 3. Fetch 24-hour customer window status
-    $windowStatus = [
-        'isOpen' => true, // optimistic default
-        'expirationTimestamp' => null,
-        'formattedRemaining' => null,
-    ];
+    // 3. Determine 24-hour customer service window status
+    // WhatsApp/Meta rule: The 24-hour service window opens and resets on every inbound message from the customer.
+    $latestInboundTs = 0;
+    foreach ($messages as $msgItem) {
+        if (($msgItem['direction'] ?? '') === 'INBOUND') {
+            $msgTs = (int)($msgItem['timestamp'] ?? 0);
+            if ($msgTs > $latestInboundTs) {
+                $latestInboundTs = $msgTs;
+            }
+        }
+    }
+
+    // Also check local database directly in case some inbound messages were outside the current query
     try {
-        $winRes = $dt->getChatWindowStatus($cleanPhone, $waba);
-        if (isset($winRes['isOpen'])) {
-            $windowStatus['isOpen'] = (bool)$winRes['isOpen'];
-            $windowStatus['expirationTimestamp'] = $winRes['expirationTimestamp'] ?? null;
-            if (!empty($winRes['expirationTimestamp'])) {
-                $diff = (int)$winRes['expirationTimestamp'] - time();
-                if ($diff > 0) {
-                    $hours = floor($diff / 3600);
-                    $mins = floor(($diff % 3600) / 60);
-                    $windowStatus['formattedRemaining'] = "{$hours}h {$mins}m";
-                }
+        $db = Database::getInstance();
+        $inboundStmt = $db->prepare("
+            SELECT MAX(created_at) as last_inbound 
+            FROM message_mappings 
+            WHERE direction = 'INBOUND' 
+              AND (customer_phone LIKE :phone OR customer_phone LIKE :clean_phone OR customer_phone LIKE :intl_phone)
+        ");
+        $inboundStmt->execute([
+            'phone' => '%' . $phoneSuffix,
+            'clean_phone' => '%' . $cleanPhone . '%',
+            'intl_phone' => '%' . $intlPhone . '%',
+        ]);
+        $lastInboundRow = $inboundStmt->fetch();
+        if (!empty($lastInboundRow['last_inbound'])) {
+            $dbInboundTs = strtotime($lastInboundRow['last_inbound']);
+            if ($dbInboundTs > $latestInboundTs) {
+                $latestInboundTs = $dbInboundTs;
             }
         }
     } catch (\Throwable $e) {
+        // Non-fatal
+    }
+
+    $windowStatus = [
+        'isOpen' => true,
+        'expirationTimestamp' => null,
+        'formattedRemaining' => null,
+    ];
+
+    $remoteWindowOpen = null;
+    $remoteExpiration = null;
+    try {
+        $winRes = $dt->getChatWindowStatus($cleanPhone, $waba);
+        if (isset($winRes['isOpen']) && $winRes['isOpen'] !== null) {
+            $remoteWindowOpen = (bool)$winRes['isOpen'];
+            $remoteExpiration = $winRes['expirationTimestamp'] ?? null;
+        }
+    } catch (\Throwable $e) {
         // Window check non-fatal
+    }
+
+    $now = time();
+    if ($latestInboundTs > 0) {
+        $elapsed = $now - $latestInboundTs;
+        if ($elapsed < 86400) {
+            // Customer replied within the last 24 hours -> 100% active WhatsApp session
+            $remaining = 86400 - $elapsed;
+            $hours = floor($remaining / 3600);
+            $mins = floor(($remaining % 3600) / 60);
+            $windowStatus['isOpen'] = true;
+            $windowStatus['expirationTimestamp'] = $latestInboundTs + 86400;
+            $windowStatus['formattedRemaining'] = "{$hours}h {$mins}m";
+        } else {
+            // Customer last inbound was over 24 hours ago -> Window closed unless remote DoubleTick reports open
+            if ($remoteWindowOpen === true) {
+                $windowStatus['isOpen'] = true;
+                $windowStatus['expirationTimestamp'] = $remoteExpiration;
+                if (!empty($remoteExpiration) && ($remoteExpiration - $now) > 0) {
+                    $diff = $remoteExpiration - $now;
+                    $windowStatus['formattedRemaining'] = floor($diff / 3600) . "h " . floor(($diff % 3600) / 60) . "m";
+                }
+            } else {
+                $windowStatus['isOpen'] = false;
+                $windowStatus['expirationTimestamp'] = $latestInboundTs + 86400;
+                $windowStatus['formattedRemaining'] = null;
+            }
+        }
+    } else {
+        // No inbound messages recorded
+        if ($remoteWindowOpen !== null) {
+            $windowStatus['isOpen'] = $remoteWindowOpen;
+            $windowStatus['expirationTimestamp'] = $remoteExpiration;
+            if (!empty($remoteExpiration) && ($remoteExpiration - $now) > 0) {
+                $diff = $remoteExpiration - $now;
+                $windowStatus['formattedRemaining'] = floor($diff / 3600) . "h " . floor(($diff % 3600) / 60) . "m";
+            }
+        } else {
+            $windowStatus['isOpen'] = true;
+        }
     }
 
     echo json_encode([
@@ -2177,10 +2353,10 @@ header('Content-Security-Policy: frame-ancestors *');
 <!-- Full Image Lightbox Modal -->
 <div id="lightbox-modal" class="lightbox-modal" onclick="closeLightbox(event)">
     <span class="lightbox-close" onclick="closeLightbox(event)">&times;</span>
-    <img id="lightbox-img" class="lightbox-img" src="" alt="Preview">
+    <img id="lightbox-img" class="lightbox-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" alt="Preview">
     <div class="lightbox-footer">
         <span id="lightbox-caption" class="lightbox-caption"></span>
-        <a id="lightbox-download" class="btn btn-secondary" href="" download="" target="_blank" rel="noopener">
+        <a id="lightbox-download" class="btn btn-secondary" href="#" download="" target="_blank" rel="noopener">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Download
         </a>
@@ -2368,10 +2544,9 @@ header('Content-Security-Policy: frame-ancestors *');
                     return;
                 }
 
-                // Update 24h window badge
-                updateWindowBadge(data.window_status);
-
                 const messages = data.messages || [];
+                // Update 24h window badge (incorporating thread messages)
+                updateWindowBadge(data.window_status, messages);
                 renderMessages(messages, forceScroll);
             })
             .catch(err => {
@@ -2379,16 +2554,40 @@ header('Content-Security-Policy: frame-ancestors *');
             });
     }
 
-    function updateWindowBadge(win) {
-        window.keenDebugStore.crmInfo.windowStatus = win;
+    function updateWindowBadge(win, messages) {
+        let statusObj = win || { isOpen: false };
+
+        // Client-side verification: if the thread contains an inbound message within 24h, the session is active!
+        if (Array.isArray(messages) && messages.length > 0) {
+            let maxInboundTs = 0;
+            const nowSec = Math.floor(Date.now() / 1000);
+            messages.forEach(m => {
+                if (m.direction === 'INBOUND' && m.timestamp) {
+                    const ts = parseInt(m.timestamp, 10);
+                    if (ts > maxInboundTs) maxInboundTs = ts;
+                }
+            });
+            if (maxInboundTs > 0 && (nowSec - maxInboundTs) < 86400) {
+                const remainingSec = 86400 - (nowSec - maxInboundTs);
+                const h = Math.floor(remainingSec / 3600);
+                const m = Math.floor((remainingSec % 3600) / 60);
+                statusObj = {
+                    isOpen: true,
+                    expirationTimestamp: maxInboundTs + 86400,
+                    formattedRemaining: `${h}h ${m}m`
+                };
+            }
+        }
+
+        window.keenDebugStore.crmInfo.windowStatus = statusObj;
         const dot = document.getElementById('session-dot');
         const text = document.getElementById('session-text');
         const banner = document.getElementById('window-banner');
 
-        if (win && win.isOpen) {
+        if (statusObj && statusObj.isOpen) {
             isWindowOpen = true;
             dot.className = 'status-dot dot-active';
-            text.innerText = '24h Session Active' + (win.formattedRemaining ? ' (expires in ' + win.formattedRemaining + ')' : '');
+            text.innerText = '24h Session Active' + (statusObj.formattedRemaining ? ' (expires in ' + statusObj.formattedRemaining + ')' : '');
             text.style.color = '#4ade80';
             banner.style.display = 'none';
         } else {
@@ -2698,6 +2897,8 @@ header('Content-Security-Policy: frame-ancestors *');
     function closeLightbox(e) {
         if (e && e.target && e.target.id === 'lightbox-img') return;
         const modal = document.getElementById('lightbox-modal');
+        const img = document.getElementById('lightbox-img');
+        if (img) img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E";
         if (modal) modal.style.display = 'none';
     }
 
